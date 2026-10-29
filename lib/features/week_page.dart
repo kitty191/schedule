@@ -19,15 +19,47 @@ class WeekPage extends ConsumerStatefulWidget {
 }
 
 class _WeekPageState extends ConsumerState<WeekPage> {
-  DateTime _focusDate = dateOnly(DateTime.now());
+  static const _origin = 10000;
+  final DateTime _anchor = dateOnly(DateTime.now());
+  final PageController _weekController = PageController(initialPage: _origin);
+  int _page = _origin;
   bool _tools = false;
-  void _move(int days) => setState(
-    () => _focusDate = DateTime(
-      _focusDate.year,
-      _focusDate.month,
-      _focusDate.day + days,
-    ),
-  );
+
+  DateTime _dateForPage(int page) =>
+      DateTime(_anchor.year, _anchor.month, _anchor.day + (page - _origin) * 7);
+
+  void _goTo(int page) {
+    if (!_weekController.hasClients) return;
+    final target = page.clamp(0, 20000);
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _weekController.jumpToPage(target);
+    } else {
+      _weekController.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void _move(int days) => _goTo(_page + days ~/ 7);
+  void _thisWeek(int weekStart) {
+    final anchor = startOfWeek(_anchor, weekStart);
+    final now = startOfWeek(DateTime.now(), weekStart);
+    final days = DateTime.utc(
+      now.year,
+      now.month,
+      now.day,
+    ).difference(DateTime.utc(anchor.year, anchor.month, anchor.day)).inDays;
+    _goTo(_origin + days ~/ 7);
+  }
+
+  @override
+  void dispose() {
+    _weekController.dispose();
+    super.dispose();
+  }
+
   void _open(Widget page) {
     setState(() => _tools = false);
     Navigator.push(context, CupertinoPageRoute<void>(builder: (_) => page));
@@ -56,7 +88,7 @@ class _WeekPageState extends ConsumerState<WeekPage> {
     final settings = TimetableSettings.decode(
       data?.preferences.timetableConfig,
     );
-    final start = startOfWeek(_focusDate, settings.weekStart);
+    final start = startOfWeek(_dateForPage(_page), settings.weekStart);
     final end = DateTime(
       start.year,
       start.month,
@@ -155,6 +187,7 @@ class _WeekPageState extends ConsumerState<WeekPage> {
                 children: [
                   Expanded(
                     child: Text(
+                      key: const Key('week-range'),
                       '${week == null ? '整周总览' : '第 $week 周'} · ${start.month}/${start.day} — ${end.month}/${end.day}',
                       style: const TextStyle(
                         fontSize: 13,
@@ -170,8 +203,8 @@ class _WeekPageState extends ConsumerState<WeekPage> {
                   ),
                   CupertinoButton(
                     padding: const EdgeInsets.all(6),
-                    onPressed: () =>
-                        setState(() => _focusDate = dateOnly(DateTime.now())),
+                    key: const Key('this-week'),
+                    onPressed: () => _thisWeek(settings.weekStart),
                     child: const Text('本周', style: TextStyle(fontSize: 13)),
                   ),
                   CupertinoButton(
@@ -194,10 +227,23 @@ class _WeekPageState extends ConsumerState<WeekPage> {
                 child: MutedText('另有 $hidden 组课程在未显示的日期，可在课表设置中改为 7 天。'),
               ),
             Expanded(
-              child: WeekGrid(
-                weekStart: start,
-                courses: courses,
-                settings: settings,
+              child: PageView.builder(
+                key: const Key('week-pager'),
+                controller: _weekController,
+                itemCount: 20001,
+                onPageChanged: (page) => setState(() => _page = page),
+                itemBuilder: (context, page) {
+                  final pageStart = startOfWeek(
+                    _dateForPage(page),
+                    settings.weekStart,
+                  );
+                  return WeekGrid(
+                    key: ValueKey('week-${dayKey(pageStart)}'),
+                    weekStart: pageStart,
+                    courses: courses,
+                    settings: settings,
+                  );
+                },
               ),
             ),
           ],
@@ -341,6 +387,7 @@ class WeekGrid extends StatelessWidget {
             ),
             Expanded(
               child: SingleChildScrollView(
+                key: PageStorageKey('week-scroll-${dayKey(weekStart)}'),
                 padding: const EdgeInsets.only(bottom: 120),
                 child: SizedBox(
                   height: axis.height + 16,
