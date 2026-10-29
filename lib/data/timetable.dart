@@ -76,13 +76,13 @@ Course? upcomingToday(List<Course> courses, DateTime now) => coursesOn(
   now,
 ).where((c) => courseTime(c, now, end: true).isAfter(now)).firstOrNull;
 
-int? semesterWeek(DateTime? start, DateTime now) {
+int? semesterWeek(DateTime? start, DateTime now, {int weekStart = 1}) {
   if (start == null) return null;
   final monday = DateTime.utc(
     start.year,
     start.month,
     start.day,
-  ).subtract(Duration(days: start.weekday - 1));
+  ).subtract(Duration(days: (start.weekday - weekStart + 7) % 7));
   final today = DateTime.utc(now.year, now.month, now.day);
   if (today.isBefore(monday)) return null;
   return today.difference(monday).inDays ~/ 7 + 1;

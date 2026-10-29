@@ -144,6 +144,28 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _startPeriodMeta = const VerificationMeta(
+    'startPeriod',
+  );
+  @override
+  late final GeneratedColumn<int> startPeriod = GeneratedColumn<int>(
+    'start_period',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endPeriodMeta = const VerificationMeta(
+    'endPeriod',
+  );
+  @override
+  late final GeneratedColumn<int> endPeriod = GeneratedColumn<int>(
+    'end_period',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -158,6 +180,8 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
     description,
     kind,
     reminderMinutes,
+    startPeriod,
+    endPeriod,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -262,6 +286,21 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
         ),
       );
     }
+    if (data.containsKey('start_period')) {
+      context.handle(
+        _startPeriodMeta,
+        startPeriod.isAcceptableOrUnknown(
+          data['start_period']!,
+          _startPeriodMeta,
+        ),
+      );
+    }
+    if (data.containsKey('end_period')) {
+      context.handle(
+        _endPeriodMeta,
+        endPeriod.isAcceptableOrUnknown(data['end_period']!, _endPeriodMeta),
+      );
+    }
     return context;
   }
 
@@ -319,6 +358,14 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
         DriftSqlType.int,
         data['${effectivePrefix}reminder_minutes'],
       ),
+      startPeriod: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_period'],
+      ),
+      endPeriod: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_period'],
+      ),
     );
   }
 
@@ -341,6 +388,8 @@ class Course extends DataClass implements Insertable<Course> {
   final String? description;
   final String? kind;
   final int? reminderMinutes;
+  final int? startPeriod;
+  final int? endPeriod;
   const Course({
     required this.id,
     required this.name,
@@ -354,6 +403,8 @@ class Course extends DataClass implements Insertable<Course> {
     this.description,
     this.kind,
     this.reminderMinutes,
+    this.startPeriod,
+    this.endPeriod,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -380,6 +431,12 @@ class Course extends DataClass implements Insertable<Course> {
     if (!nullToAbsent || reminderMinutes != null) {
       map['reminder_minutes'] = Variable<int>(reminderMinutes);
     }
+    if (!nullToAbsent || startPeriod != null) {
+      map['start_period'] = Variable<int>(startPeriod);
+    }
+    if (!nullToAbsent || endPeriod != null) {
+      map['end_period'] = Variable<int>(endPeriod);
+    }
     return map;
   }
 
@@ -405,6 +462,12 @@ class Course extends DataClass implements Insertable<Course> {
       reminderMinutes: reminderMinutes == null && nullToAbsent
           ? const Value.absent()
           : Value(reminderMinutes),
+      startPeriod: startPeriod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startPeriod),
+      endPeriod: endPeriod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endPeriod),
     );
   }
 
@@ -426,6 +489,8 @@ class Course extends DataClass implements Insertable<Course> {
       description: serializer.fromJson<String?>(json['description']),
       kind: serializer.fromJson<String?>(json['kind']),
       reminderMinutes: serializer.fromJson<int?>(json['reminderMinutes']),
+      startPeriod: serializer.fromJson<int?>(json['startPeriod']),
+      endPeriod: serializer.fromJson<int?>(json['endPeriod']),
     );
   }
   @override
@@ -444,6 +509,8 @@ class Course extends DataClass implements Insertable<Course> {
       'description': serializer.toJson<String?>(description),
       'kind': serializer.toJson<String?>(kind),
       'reminderMinutes': serializer.toJson<int?>(reminderMinutes),
+      'startPeriod': serializer.toJson<int?>(startPeriod),
+      'endPeriod': serializer.toJson<int?>(endPeriod),
     };
   }
 
@@ -460,6 +527,8 @@ class Course extends DataClass implements Insertable<Course> {
     Value<String?> description = const Value.absent(),
     Value<String?> kind = const Value.absent(),
     Value<int?> reminderMinutes = const Value.absent(),
+    Value<int?> startPeriod = const Value.absent(),
+    Value<int?> endPeriod = const Value.absent(),
   }) => Course(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -475,6 +544,8 @@ class Course extends DataClass implements Insertable<Course> {
     reminderMinutes: reminderMinutes.present
         ? reminderMinutes.value
         : this.reminderMinutes,
+    startPeriod: startPeriod.present ? startPeriod.value : this.startPeriod,
+    endPeriod: endPeriod.present ? endPeriod.value : this.endPeriod,
   );
   Course copyWithCompanion(CoursesCompanion data) {
     return Course(
@@ -500,6 +571,10 @@ class Course extends DataClass implements Insertable<Course> {
       reminderMinutes: data.reminderMinutes.present
           ? data.reminderMinutes.value
           : this.reminderMinutes,
+      startPeriod: data.startPeriod.present
+          ? data.startPeriod.value
+          : this.startPeriod,
+      endPeriod: data.endPeriod.present ? data.endPeriod.value : this.endPeriod,
     );
   }
 
@@ -517,7 +592,9 @@ class Course extends DataClass implements Insertable<Course> {
           ..write('importKey: $importKey, ')
           ..write('description: $description, ')
           ..write('kind: $kind, ')
-          ..write('reminderMinutes: $reminderMinutes')
+          ..write('reminderMinutes: $reminderMinutes, ')
+          ..write('startPeriod: $startPeriod, ')
+          ..write('endPeriod: $endPeriod')
           ..write(')'))
         .toString();
   }
@@ -536,6 +613,8 @@ class Course extends DataClass implements Insertable<Course> {
     description,
     kind,
     reminderMinutes,
+    startPeriod,
+    endPeriod,
   );
   @override
   bool operator ==(Object other) =>
@@ -552,7 +631,9 @@ class Course extends DataClass implements Insertable<Course> {
           other.importKey == this.importKey &&
           other.description == this.description &&
           other.kind == this.kind &&
-          other.reminderMinutes == this.reminderMinutes);
+          other.reminderMinutes == this.reminderMinutes &&
+          other.startPeriod == this.startPeriod &&
+          other.endPeriod == this.endPeriod);
 }
 
 class CoursesCompanion extends UpdateCompanion<Course> {
@@ -568,6 +649,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
   final Value<String?> description;
   final Value<String?> kind;
   final Value<int?> reminderMinutes;
+  final Value<int?> startPeriod;
+  final Value<int?> endPeriod;
   const CoursesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -581,6 +664,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     this.description = const Value.absent(),
     this.kind = const Value.absent(),
     this.reminderMinutes = const Value.absent(),
+    this.startPeriod = const Value.absent(),
+    this.endPeriod = const Value.absent(),
   });
   CoursesCompanion.insert({
     this.id = const Value.absent(),
@@ -595,6 +680,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     this.description = const Value.absent(),
     this.kind = const Value.absent(),
     this.reminderMinutes = const Value.absent(),
+    this.startPeriod = const Value.absent(),
+    this.endPeriod = const Value.absent(),
   }) : name = Value(name),
        location = Value(location),
        weekday = Value(weekday),
@@ -613,6 +700,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     Expression<String>? description,
     Expression<String>? kind,
     Expression<int>? reminderMinutes,
+    Expression<int>? startPeriod,
+    Expression<int>? endPeriod,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -627,6 +716,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
       if (description != null) 'description': description,
       if (kind != null) 'kind': kind,
       if (reminderMinutes != null) 'reminder_minutes': reminderMinutes,
+      if (startPeriod != null) 'start_period': startPeriod,
+      if (endPeriod != null) 'end_period': endPeriod,
     });
   }
 
@@ -643,6 +734,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     Value<String?>? description,
     Value<String?>? kind,
     Value<int?>? reminderMinutes,
+    Value<int?>? startPeriod,
+    Value<int?>? endPeriod,
   }) {
     return CoursesCompanion(
       id: id ?? this.id,
@@ -657,6 +750,8 @@ class CoursesCompanion extends UpdateCompanion<Course> {
       description: description ?? this.description,
       kind: kind ?? this.kind,
       reminderMinutes: reminderMinutes ?? this.reminderMinutes,
+      startPeriod: startPeriod ?? this.startPeriod,
+      endPeriod: endPeriod ?? this.endPeriod,
     );
   }
 
@@ -699,6 +794,12 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     if (reminderMinutes.present) {
       map['reminder_minutes'] = Variable<int>(reminderMinutes.value);
     }
+    if (startPeriod.present) {
+      map['start_period'] = Variable<int>(startPeriod.value);
+    }
+    if (endPeriod.present) {
+      map['end_period'] = Variable<int>(endPeriod.value);
+    }
     return map;
   }
 
@@ -716,7 +817,9 @@ class CoursesCompanion extends UpdateCompanion<Course> {
           ..write('importKey: $importKey, ')
           ..write('description: $description, ')
           ..write('kind: $kind, ')
-          ..write('reminderMinutes: $reminderMinutes')
+          ..write('reminderMinutes: $reminderMinutes, ')
+          ..write('startPeriod: $startPeriod, ')
+          ..write('endPeriod: $endPeriod')
           ..write(')'))
         .toString();
   }
@@ -776,12 +879,24 @@ class $PreferencesTable extends Preferences
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _timetableConfigMeta = const VerificationMeta(
+    'timetableConfig',
+  );
+  @override
+  late final GeneratedColumn<String> timetableConfig = GeneratedColumn<String>(
+    'timetable_config',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
     reminders,
     leadMinutes,
     semesterStart,
+    timetableConfig,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -822,6 +937,15 @@ class $PreferencesTable extends Preferences
         ),
       );
     }
+    if (data.containsKey('timetable_config')) {
+      context.handle(
+        _timetableConfigMeta,
+        timetableConfig.isAcceptableOrUnknown(
+          data['timetable_config']!,
+          _timetableConfigMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -847,6 +971,10 @@ class $PreferencesTable extends Preferences
         DriftSqlType.dateTime,
         data['${effectivePrefix}semester_start'],
       ),
+      timetableConfig: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}timetable_config'],
+      ),
     );
   }
 
@@ -861,11 +989,13 @@ class Preference extends DataClass implements Insertable<Preference> {
   final bool reminders;
   final int leadMinutes;
   final DateTime? semesterStart;
+  final String? timetableConfig;
   const Preference({
     required this.id,
     required this.reminders,
     required this.leadMinutes,
     this.semesterStart,
+    this.timetableConfig,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -875,6 +1005,9 @@ class Preference extends DataClass implements Insertable<Preference> {
     map['lead_minutes'] = Variable<int>(leadMinutes);
     if (!nullToAbsent || semesterStart != null) {
       map['semester_start'] = Variable<DateTime>(semesterStart);
+    }
+    if (!nullToAbsent || timetableConfig != null) {
+      map['timetable_config'] = Variable<String>(timetableConfig);
     }
     return map;
   }
@@ -887,6 +1020,9 @@ class Preference extends DataClass implements Insertable<Preference> {
       semesterStart: semesterStart == null && nullToAbsent
           ? const Value.absent()
           : Value(semesterStart),
+      timetableConfig: timetableConfig == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timetableConfig),
     );
   }
 
@@ -900,6 +1036,7 @@ class Preference extends DataClass implements Insertable<Preference> {
       reminders: serializer.fromJson<bool>(json['reminders']),
       leadMinutes: serializer.fromJson<int>(json['leadMinutes']),
       semesterStart: serializer.fromJson<DateTime?>(json['semesterStart']),
+      timetableConfig: serializer.fromJson<String?>(json['timetableConfig']),
     );
   }
   @override
@@ -910,6 +1047,7 @@ class Preference extends DataClass implements Insertable<Preference> {
       'reminders': serializer.toJson<bool>(reminders),
       'leadMinutes': serializer.toJson<int>(leadMinutes),
       'semesterStart': serializer.toJson<DateTime?>(semesterStart),
+      'timetableConfig': serializer.toJson<String?>(timetableConfig),
     };
   }
 
@@ -918,6 +1056,7 @@ class Preference extends DataClass implements Insertable<Preference> {
     bool? reminders,
     int? leadMinutes,
     Value<DateTime?> semesterStart = const Value.absent(),
+    Value<String?> timetableConfig = const Value.absent(),
   }) => Preference(
     id: id ?? this.id,
     reminders: reminders ?? this.reminders,
@@ -925,6 +1064,9 @@ class Preference extends DataClass implements Insertable<Preference> {
     semesterStart: semesterStart.present
         ? semesterStart.value
         : this.semesterStart,
+    timetableConfig: timetableConfig.present
+        ? timetableConfig.value
+        : this.timetableConfig,
   );
   Preference copyWithCompanion(PreferencesCompanion data) {
     return Preference(
@@ -936,6 +1078,9 @@ class Preference extends DataClass implements Insertable<Preference> {
       semesterStart: data.semesterStart.present
           ? data.semesterStart.value
           : this.semesterStart,
+      timetableConfig: data.timetableConfig.present
+          ? data.timetableConfig.value
+          : this.timetableConfig,
     );
   }
 
@@ -945,13 +1090,15 @@ class Preference extends DataClass implements Insertable<Preference> {
           ..write('id: $id, ')
           ..write('reminders: $reminders, ')
           ..write('leadMinutes: $leadMinutes, ')
-          ..write('semesterStart: $semesterStart')
+          ..write('semesterStart: $semesterStart, ')
+          ..write('timetableConfig: $timetableConfig')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, reminders, leadMinutes, semesterStart);
+  int get hashCode =>
+      Object.hash(id, reminders, leadMinutes, semesterStart, timetableConfig);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -959,7 +1106,8 @@ class Preference extends DataClass implements Insertable<Preference> {
           other.id == this.id &&
           other.reminders == this.reminders &&
           other.leadMinutes == this.leadMinutes &&
-          other.semesterStart == this.semesterStart);
+          other.semesterStart == this.semesterStart &&
+          other.timetableConfig == this.timetableConfig);
 }
 
 class PreferencesCompanion extends UpdateCompanion<Preference> {
@@ -967,29 +1115,34 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
   final Value<bool> reminders;
   final Value<int> leadMinutes;
   final Value<DateTime?> semesterStart;
+  final Value<String?> timetableConfig;
   const PreferencesCompanion({
     this.id = const Value.absent(),
     this.reminders = const Value.absent(),
     this.leadMinutes = const Value.absent(),
     this.semesterStart = const Value.absent(),
+    this.timetableConfig = const Value.absent(),
   });
   PreferencesCompanion.insert({
     this.id = const Value.absent(),
     this.reminders = const Value.absent(),
     this.leadMinutes = const Value.absent(),
     this.semesterStart = const Value.absent(),
+    this.timetableConfig = const Value.absent(),
   });
   static Insertable<Preference> custom({
     Expression<int>? id,
     Expression<bool>? reminders,
     Expression<int>? leadMinutes,
     Expression<DateTime>? semesterStart,
+    Expression<String>? timetableConfig,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (reminders != null) 'reminders': reminders,
       if (leadMinutes != null) 'lead_minutes': leadMinutes,
       if (semesterStart != null) 'semester_start': semesterStart,
+      if (timetableConfig != null) 'timetable_config': timetableConfig,
     });
   }
 
@@ -998,12 +1151,14 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
     Value<bool>? reminders,
     Value<int>? leadMinutes,
     Value<DateTime?>? semesterStart,
+    Value<String?>? timetableConfig,
   }) {
     return PreferencesCompanion(
       id: id ?? this.id,
       reminders: reminders ?? this.reminders,
       leadMinutes: leadMinutes ?? this.leadMinutes,
       semesterStart: semesterStart ?? this.semesterStart,
+      timetableConfig: timetableConfig ?? this.timetableConfig,
     );
   }
 
@@ -1022,6 +1177,9 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
     if (semesterStart.present) {
       map['semester_start'] = Variable<DateTime>(semesterStart.value);
     }
+    if (timetableConfig.present) {
+      map['timetable_config'] = Variable<String>(timetableConfig.value);
+    }
     return map;
   }
 
@@ -1031,7 +1189,8 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
           ..write('id: $id, ')
           ..write('reminders: $reminders, ')
           ..write('leadMinutes: $leadMinutes, ')
-          ..write('semesterStart: $semesterStart')
+          ..write('semesterStart: $semesterStart, ')
+          ..write('timetableConfig: $timetableConfig')
           ..write(')'))
         .toString();
   }
@@ -1062,6 +1221,8 @@ typedef $$CoursesTableCreateCompanionBuilder = CoursesCompanion Function({
   Value<String?> description,
   Value<String?> kind,
   Value<int?> reminderMinutes,
+  Value<int?> startPeriod,
+  Value<int?> endPeriod,
 });
 typedef $$CoursesTableUpdateCompanionBuilder = CoursesCompanion Function({
   Value<int> id,
@@ -1076,6 +1237,8 @@ typedef $$CoursesTableUpdateCompanionBuilder = CoursesCompanion Function({
   Value<String?> description,
   Value<String?> kind,
   Value<int?> reminderMinutes,
+  Value<int?> startPeriod,
+  Value<int?> endPeriod,
 });
 
 class $$CoursesTableFilterComposer
@@ -1144,6 +1307,16 @@ class $$CoursesTableFilterComposer
 
   ColumnFilters<int> get reminderMinutes => $composableBuilder(
     column: $table.reminderMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startPeriod => $composableBuilder(
+    column: $table.startPeriod,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endPeriod => $composableBuilder(
+    column: $table.endPeriod,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1216,6 +1389,16 @@ class $$CoursesTableOrderingComposer
     column: $table.reminderMinutes,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get startPeriod => $composableBuilder(
+    column: $table.startPeriod,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endPeriod => $composableBuilder(
+    column: $table.endPeriod,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CoursesTableAnnotationComposer
@@ -1272,6 +1455,14 @@ class $$CoursesTableAnnotationComposer
     column: $table.reminderMinutes,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get startPeriod => $composableBuilder(
+    column: $table.startPeriod,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endPeriod =>
+      $composableBuilder(column: $table.endPeriod, builder: (column) => column);
 }
 
 class $$CoursesTableTableManager
@@ -1314,6 +1505,8 @@ class $$CoursesTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<String?> kind = const Value.absent(),
                 Value<int?> reminderMinutes = const Value.absent(),
+                Value<int?> startPeriod = const Value.absent(),
+                Value<int?> endPeriod = const Value.absent(),
               }) => CoursesCompanion(
                 id: id,
                 name: name,
@@ -1327,6 +1520,8 @@ class $$CoursesTableTableManager
                 description: description,
                 kind: kind,
                 reminderMinutes: reminderMinutes,
+                startPeriod: startPeriod,
+                endPeriod: endPeriod,
               ),
           createCompanionCallback:
               ({
@@ -1342,6 +1537,8 @@ class $$CoursesTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<String?> kind = const Value.absent(),
                 Value<int?> reminderMinutes = const Value.absent(),
+                Value<int?> startPeriod = const Value.absent(),
+                Value<int?> endPeriod = const Value.absent(),
               }) => CoursesCompanion.insert(
                 id: id,
                 name: name,
@@ -1355,6 +1552,8 @@ class $$CoursesTableTableManager
                 description: description,
                 kind: kind,
                 reminderMinutes: reminderMinutes,
+                startPeriod: startPeriod,
+                endPeriod: endPeriod,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -1393,6 +1592,7 @@ typedef $$PreferencesTableCreateCompanionBuilder =
       Value<bool> reminders,
       Value<int> leadMinutes,
       Value<DateTime?> semesterStart,
+      Value<String?> timetableConfig,
     });
 typedef $$PreferencesTableUpdateCompanionBuilder =
     PreferencesCompanion Function({
@@ -1400,6 +1600,7 @@ typedef $$PreferencesTableUpdateCompanionBuilder =
       Value<bool> reminders,
       Value<int> leadMinutes,
       Value<DateTime?> semesterStart,
+      Value<String?> timetableConfig,
     });
 
 class $$PreferencesTableFilterComposer
@@ -1428,6 +1629,11 @@ class $$PreferencesTableFilterComposer
 
   ColumnFilters<DateTime> get semesterStart => $composableBuilder(
     column: $table.semesterStart,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get timetableConfig => $composableBuilder(
+    column: $table.timetableConfig,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1460,6 +1666,11 @@ class $$PreferencesTableOrderingComposer
     column: $table.semesterStart,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get timetableConfig => $composableBuilder(
+    column: $table.timetableConfig,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PreferencesTableAnnotationComposer
@@ -1484,6 +1695,11 @@ class $$PreferencesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get semesterStart => $composableBuilder(
     column: $table.semesterStart,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get timetableConfig => $composableBuilder(
+    column: $table.timetableConfig,
     builder: (column) => column,
   );
 }
@@ -1523,11 +1739,13 @@ class $$PreferencesTableTableManager
                 Value<bool> reminders = const Value.absent(),
                 Value<int> leadMinutes = const Value.absent(),
                 Value<DateTime?> semesterStart = const Value.absent(),
+                Value<String?> timetableConfig = const Value.absent(),
               }) => PreferencesCompanion(
                 id: id,
                 reminders: reminders,
                 leadMinutes: leadMinutes,
                 semesterStart: semesterStart,
+                timetableConfig: timetableConfig,
               ),
           createCompanionCallback:
               ({
@@ -1535,11 +1753,13 @@ class $$PreferencesTableTableManager
                 Value<bool> reminders = const Value.absent(),
                 Value<int> leadMinutes = const Value.absent(),
                 Value<DateTime?> semesterStart = const Value.absent(),
+                Value<String?> timetableConfig = const Value.absent(),
               }) => PreferencesCompanion.insert(
                 id: id,
                 reminders: reminders,
                 leadMinutes: leadMinutes,
                 semesterStart: semesterStart,
+                timetableConfig: timetableConfig,
               ),
           withReferenceMapper: (p0) => p0
               .map(

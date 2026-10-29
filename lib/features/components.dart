@@ -56,3 +56,105 @@ class MutedText extends StatelessWidget {
     ),
   );
 }
+
+Future<int?> pickClock(BuildContext context, String title, int initial) async {
+  var selected = initial;
+  return showCupertinoModalPopup<int>(
+    context: context,
+    builder: (context) => Container(
+      height: 300 + MediaQuery.paddingOf(context).bottom,
+      color: CupertinoColors.systemBackground,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CupertinoButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('取消'),
+                ),
+                Text(title, style: const TextStyle(fontSize: 15)),
+                CupertinoButton(
+                  onPressed: () => Navigator.pop(context, selected),
+                  child: const Text('完成'),
+                ),
+              ],
+            ),
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.time,
+                use24hFormat: true,
+                initialDateTime: DateTime(
+                  2026,
+                  1,
+                  1,
+                  initial ~/ 60,
+                  initial % 60,
+                ),
+                onDateTimeChanged: (date) =>
+                    selected = date.hour * 60 + date.minute,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Future<int?> pickNumber(
+  BuildContext context,
+  String title,
+  int initial,
+  int min,
+  int max, {
+  String unit = '',
+}) async {
+  var selected = initial.clamp(min, max);
+  final controller = FixedExtentScrollController(initialItem: selected - min);
+  try {
+    return await showCupertinoModalPopup<int>(
+      context: context,
+      builder: (context) => Container(
+        height: 300 + MediaQuery.paddingOf(context).bottom,
+        color: CupertinoColors.systemBackground,
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('取消'),
+                  ),
+                  Text(title, style: const TextStyle(fontSize: 15)),
+                  CupertinoButton(
+                    onPressed: () => Navigator.pop(context, selected),
+                    child: const Text('完成'),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: CupertinoPicker(
+                  scrollController: controller,
+                  itemExtent: 40,
+                  onSelectedItemChanged: (index) => selected = min + index,
+                  children: [
+                    for (var v = min; v <= max; v++)
+                      Center(child: Text('$v$unit')),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  } finally {
+    controller.dispose();
+  }
+}

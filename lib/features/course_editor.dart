@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/app_controller.dart';
 import '../data/database.dart';
 import '../data/timetable.dart';
+import '../data/timetable_settings.dart';
 import 'components.dart';
 
 class CourseEditor extends ConsumerStatefulWidget {
@@ -15,10 +16,13 @@ class CourseEditor extends ConsumerStatefulWidget {
     this.course,
     this.kind = 'course',
     this.initialDate,
+    this.initialWeekday,
+    this.initialPeriod,
   });
   final Course? course;
   final String kind;
   final DateTime? initialDate;
+  final int? initialWeekday, initialPeriod;
   @override
   ConsumerState<CourseEditor> createState() => _CourseEditorState();
 }
@@ -28,7 +32,8 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
   late final _location = TextEditingController(
     text: widget.course?.location ?? '',
   );
-  late int _weekday = widget.course?.weekday ?? DateTime.now().weekday;
+  late int _weekday =
+      widget.course?.weekday ?? widget.initialWeekday ?? DateTime.now().weekday;
   late int _start = widget.course?.startMinute ?? 8 * 60 + 30;
   late int _end = widget.course?.endMinute ?? 10 * 60 + 5;
   late int _color = widget.course?.colorIndex ?? 0;
@@ -42,6 +47,55 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
   late final _notes = TextEditingController(
     text: widget.course?.description ?? '',
   );
+
+  late final TimetableSettings _timetable = TimetableSettings.decode(
+    ref.read(appProvider).requireValue.preferences.timetableConfig,
+  );
+  late bool _byPeriod =
+      !_event &&
+      !_imported &&
+      (widget.course == null || widget.course?.startPeriod != null);
+  late int _startPeriod =
+      widget.course?.startPeriod ??
+      (widget.initialPeriod ?? 1).clamp(1, _timetable.periods.length);
+  late int _endPeriod =
+      widget.course?.endPeriod ??
+      (widget.initialPeriod ?? 2).clamp(
+        _startPeriod,
+        _timetable.periods.length,
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    if (_byPeriod) _assignPeriods(_startPeriod, _endPeriod);
+  }
+
+  void _assignPeriods(int first, int last) {
+    _startPeriod = first;
+    _endPeriod = last;
+    _start = _timetable.periods[first - 1].start;
+    _end = _timetable.periods[last - 1].end;
+  }
+
+  Future<void> _pickPeriod(bool first) async {
+    final chosen = await pickNumber(
+      context,
+      first ? '开始节次' : '结束节次',
+      first ? _startPeriod : _endPeriod,
+      first ? 1 : _startPeriod,
+      _timetable.periods.length,
+      unit: ' 节',
+    );
+    if (chosen == null || !mounted) return;
+    setState(() {
+      if (first) {
+        _assignPeriods(chosen, _endPeriod < chosen ? chosen : _endPeriod);
+      } else {
+        _assignPeriods(_startPeriod, chosen);
+      }
+    });
+  }
 
   Future<void> _chooseDate() async {
     var selected = _date;
@@ -154,6 +208,7 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
       await showMessage(context, _event ? '先为日程起一个名字吧。' : '先为课程起一个名字吧。');
       return;
     }
+    if (_byPeriod) _assignPeriods(_startPeriod, _endPeriod);
     if (_end <= _start) {
       await showMessage(context, '下课时间需要晚于上课时间。跨午夜的课程请拆成两门添加。');
       return;
@@ -173,6 +228,8 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
               startMinute: Value(_start),
               endMinute: Value(_end),
               colorIndex: Value(_color),
+              startPeriod: Value(_byPeriod ? _startPeriod : null),
+              endPeriod: Value(_byPeriod ? _endPeriod : null),
               kind: Value(_event ? 'event' : 'course'),
               description: Value(_notes.text.trim()),
               importKey: Value(widget.course?.importKey),
@@ -342,7 +399,51 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
               ),
             ),
           const SizedBox(height: 24),
-          if (!_imported)
+          if (!_event && !_imported) ...[
+            CupertinoSlidingSegmentedControl<bool>(
+              key: const Key('course-time-mode'),
+              groupValue: _byPeriod,
+              children: const {true: Text('按节次'), false: Text('自定义时间')},
+              onValueChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _byPeriod = value;
+                    if (value) _assignPeriods(_startPeriod, _endPeriod);
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 14),
+            if (_byPeriod)
+              WhiteCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    CupertinoListTile(
+                      key: const Key('course-start-period'),
+                      title: const Text('开始节次'),
+                      trailing: Text('第 $_startPeriod 节'),
+                      additionalInfo: const CupertinoListTileChevron(),
+                      onTap: () => _pickPeriod(true),
+                    ),
+                    CupertinoListTile(
+                      key: const Key('course-end-period'),
+                      title: const Text('结束节次'),
+                      trailing: Text('第 $_endPeriod 节'),
+                      additionalInfo: const CupertinoListTileChevron(),
+                      onTap: () => _pickPeriod(false),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+                      child: MutedText(
+                        '${clockText(_start)} — ${clockText(_end)} · 跟随课表设置自动调整',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          if (!_imported && (_event || !_byPeriod))
             WhiteCard(
               padding: EdgeInsets.zero,
               child: Column(
@@ -408,7 +509,7 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
             ),
           ),
           if (!_event && !_imported)
-            const MutedText('课程按所选星期每周重复；导入课表按文件中的实际日期上课。'),
+            const MutedText('课程按所选星期每周重复。按节次课程会跟随课表设置更新；自定义时间可自由安排。'),
           if (widget.course != null) ...[
             const SizedBox(height: 32),
             CupertinoButton(

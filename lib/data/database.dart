@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import 'timetable_settings.dart';
+
 part 'database.g.dart';
 
 class Courses extends Table {
@@ -16,6 +18,8 @@ class Courses extends Table {
   TextColumn get description => text().nullable()();
   TextColumn get kind => text().nullable()();
   IntColumn get reminderMinutes => integer().nullable()();
+  IntColumn get startPeriod => integer().nullable()();
+  IntColumn get endPeriod => integer().nullable()();
   @override
   List<String> get customConstraints => [
     'CHECK (weekday BETWEEN 1 AND 7)',
@@ -30,6 +34,7 @@ class Preferences extends Table {
   BoolColumn get reminders => boolean().withDefault(const Constant(false))();
   IntColumn get leadMinutes => integer().withDefault(const Constant(10))();
   DateTimeColumn get semesterStart => dateTime().nullable()();
+  TextColumn get timetableConfig => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -41,7 +46,7 @@ class ScheduleDatabase extends _$ScheduleDatabase {
     : super(executor ?? driftDatabase(name: 'schedule'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -61,6 +66,11 @@ class ScheduleDatabase extends _$ScheduleDatabase {
         await customStatement(
           'CREATE UNIQUE INDEX courses_import_key ON courses(import_key)',
         );
+      }
+      if (from < 3) {
+        await m.addColumn(courses, courses.startPeriod);
+        await m.addColumn(courses, courses.endPeriod);
+        await m.addColumn(preferences, preferences.timetableConfig);
       }
     },
   );
@@ -86,6 +96,25 @@ class ScheduleDatabase extends _$ScheduleDatabase {
         value.name.value.trim().isEmpty) {
       throw ArgumentError('请填写课程名称，并确保下课时间晚于上课时间。');
     }
+    if (value.startPeriod.present && value.startPeriod.value != null) {
+      final settings = TimetableSettings.decode(
+        (await loadPreferences()).timetableConfig,
+      );
+      final first = value.startPeriod.value!,
+          last = value.endPeriod.present ? value.endPeriod.value : null;
+      if ((value.occurrences.present && value.occurrences.value != null) ||
+          (value.kind.present && value.kind.value == 'event') ||
+          last == null ||
+          first < 1 ||
+          last < first ||
+          last > settings.periods.length ||
+          start != settings.periods[first - 1].start ||
+          end != settings.periods[last - 1].end) {
+        throw ArgumentError('课程节次与当前课表时间不匹配，请重新选择。');
+      }
+    } else if (value.endPeriod.present && value.endPeriod.value != null) {
+      throw ArgumentError('请选择完整的开始和结束节次。');
+    }
     await into(courses).insertOnConflictUpdate(value);
   }
 
@@ -104,6 +133,39 @@ class ScheduleDatabase extends _$ScheduleDatabase {
         }
         return inserted;
       });
+
+  Future<void> saveTimetableSettings(TimetableSettings settings) async {
+    final error = settings.validationError;
+    if (error != null) throw FormatException(error);
+    await transaction(() async {
+      final linked = await (select(
+        courses,
+      )..where((c) => c.startPeriod.isNotNull())).get();
+      for (final course in linked) {
+        final first = course.startPeriod!, last = course.endPeriod;
+        if (last == null ||
+            first < 1 ||
+            last < first ||
+            last > settings.periods.length) {
+          throw FormatException(
+            '“${course.name}”使用第 $first–${last ?? first} 节，请先修改该课程的节次或增加每天节数。',
+          );
+        }
+      }
+      final prefs = await loadPreferences();
+      await savePreferences(
+        prefs.copyWith(timetableConfig: Value(settings.encode())),
+      );
+      for (final course in linked) {
+        await (update(courses)..where((c) => c.id.equals(course.id))).write(
+          CoursesCompanion(
+            startMinute: Value(settings.periods[course.startPeriod! - 1].start),
+            endMinute: Value(settings.periods[course.endPeriod! - 1].end),
+          ),
+        );
+      }
+    });
+  }
 
   Future<void> removeCourse(int id) =>
       (delete(courses)..where((t) => t.id.equals(id))).go();

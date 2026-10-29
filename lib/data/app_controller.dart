@@ -6,6 +6,7 @@ import '../live_update_bridge.dart';
 import 'database.dart';
 import 'timetable.dart';
 import 'ics_importer.dart';
+import 'timetable_settings.dart';
 
 final databaseProvider = Provider<ScheduleDatabase>((ref) {
   final database = ScheduleDatabase();
@@ -59,6 +60,11 @@ class AppController extends AsyncNotifier<AppData> {
 
   Future<void> updatePreferences(Preference value) async {
     await ref.read(databaseProvider).savePreferences(value);
+    state = AsyncData(await _loadAndSync());
+  }
+
+  Future<void> updateTimetable(TimetableSettings settings) async {
+    await ref.read(databaseProvider).saveTimetableSettings(settings);
     state = AsyncData(await _loadAndSync());
   }
 

@@ -8,6 +8,7 @@ import 'components.dart';
 import 'import_page.dart';
 import 'reminder_sheet.dart';
 import 'today_page.dart';
+import 'timetable_settings_page.dart';
 
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
@@ -95,6 +96,16 @@ class ProfilePage extends ConsumerWidget {
               child: Column(
                 children: [
                   _tile(
+                    CupertinoIcons.slider_horizontal_3,
+                    '课表设置',
+                    () => Navigator.push(
+                      context,
+                      CupertinoPageRoute<void>(
+                        builder: (_) => const TimetableSettingsPage(),
+                      ),
+                    ),
+                  ),
+                  _tile(
                     CupertinoIcons.bell,
                     '提醒设置',
                     () => showReminderSheet(context),
@@ -118,7 +129,7 @@ class ProfilePage extends ConsumerWidget {
                 '关于今天课程',
                 () => showMessage(
                   context,
-                  '今天课程 v0.3.0\n\n日程、整周课表和本地 .ics 导入。无需登录。\n\nAndroid 支持系统实时提醒；iOS 使用普通通知，自动安排最近 60 次提醒，需要定期打开应用续排。',
+                  '今天课程 v0.4.0\n\n日程、整周课表和本地 .ics 导入。无需登录。\n\nAndroid 支持系统实时提醒；iOS 使用普通通知，自动安排最近 60 次提醒，需要定期打开应用续排。',
                 ),
               ),
             ),

@@ -7,6 +7,7 @@ import 'package:schedule/main.dart';
 import 'package:schedule/live_update_bridge.dart';
 import 'package:schedule/data/calendar_file.dart';
 import 'package:schedule/data/ics_importer.dart';
+import 'package:schedule/data/timetable_settings.dart';
 
 import 'dart:io';
 
@@ -35,6 +36,10 @@ class MemoryController extends AppController {
           startMinute: value.startMinute.value,
           endMinute: value.endMinute.value,
           colorIndex: value.colorIndex.value,
+          startPeriod: value.startPeriod.present
+              ? value.startPeriod.value
+              : null,
+          endPeriod: value.endPeriod.present ? value.endPeriod.value : null,
           occurrences: value.occurrences.present
               ? value.occurrences.value
               : null,
@@ -64,6 +69,27 @@ class MemoryController extends AppController {
       await saveCourse(entry.copyWith(id: Value(100 + i)));
     }
     return report.courses.length;
+  }
+
+  @override
+  Future<void> updateTimetable(TimetableSettings settings) async {
+    final data = state.requireValue;
+    final courses = data.courses
+        .map(
+          (c) => c.startPeriod == null
+              ? c
+              : c.copyWith(
+                  startMinute: settings.periods[c.startPeriod! - 1].start,
+                  endMinute: settings.periods[c.endPeriod! - 1].end,
+                ),
+        )
+        .toList();
+    state = AsyncData(
+      AppData(
+        courses,
+        data.preferences.copyWith(timetableConfig: Value(settings.encode())),
+      ),
+    );
   }
 
   @override
@@ -231,10 +257,12 @@ void main() {
       await openApp(tester);
       await tester.tap(find.byKey(const Key('tab-1')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('import-timetable')), findsOneWidget);
+      expect(find.byKey(const Key('import-timetable')), findsNothing);
       await tester.tap(find.byKey(const Key('next-week')));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const Key('timetable-tools')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('import-timetable')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('pick-calendar')));
@@ -274,6 +302,138 @@ void main() {
       await tester.tap(find.byKey(const Key('tab-1')));
       await tester.pumpAndSettle();
       expect(find.text('学习小组讨论'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'Toolbar expands and collapses; settings save Sunday start, 5 days and a new lesson duration',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await openApp(tester);
+      await tester.tap(find.byKey(const Key('tab-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('add-timetable-course')), findsNothing);
+      await tester.tap(find.byKey(const Key('timetable-tools')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('add-timetable-course')), findsOneWidget);
+      expect(find.byKey(const Key('import-timetable')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('timetable-tools')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('import-timetable')), findsNothing);
+      await tester.tap(find.byKey(const Key('timetable-tools')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('timetable-settings')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('week-start')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('周日'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('5 天'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('lesson-duration')),
+        180,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView).last,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('lesson-duration')));
+      await tester.pumpAndSettle();
+      final picker = tester.widget<CupertinoPicker>(
+        find.byType(CupertinoPicker),
+      );
+      picker.scrollController!.jumpToItem(45 - 5);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('完成'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('save-timetable')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('blank-weekday-7')), findsOneWidget);
+      expect(find.byKey(const Key('blank-weekday-5')), findsNothing);
+      final context = tester.element(find.byType(ScheduleApp));
+      final settings = TimetableSettings.decode(
+        ProviderScope.containerOf(context)
+            .read(appProvider)
+            .requireValue
+            .preferences
+            .timetableConfig,
+      );
+      expect(settings.lessonMinutes, 45);
+      expect(settings.periods.first.end, 525);
+      expect(settings.weekStart, 7);
+      expect(settings.visibleDays, 5);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'A blank timetable cell creates a course with weekday and period binding',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await openApp(tester);
+      await tester.tap(find.byKey(const Key('tab-1')));
+      await tester.pumpAndSettle();
+      final cell = find.byKey(const Key('blank-weekday-3'));
+      final top = tester.getTopLeft(cell);
+      await tester.tapAt(top + const Offset(12, 25));
+      await tester.pumpAndSettle();
+      expect(find.text('按节次'), findsOneWidget);
+      expect(find.text('第 1 节'), findsNWidgets(2));
+      await tester.enterText(find.byKey(const Key('course-name')), '手动排课');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+      final context = tester.element(find.byType(ScheduleApp));
+      final course = ProviderScope.containerOf(context)
+          .read(appProvider)
+          .requireValue
+          .courses
+          .single;
+      expect(course.weekday, 3);
+      expect(course.startPeriod, 1);
+      expect(course.endPeriod, 1);
+      expect(course.startMinute, 480);
+      expect(course.endMinute, 520);
+      expect(find.text('手动排课'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'Timetable tools and settings fit a narrow phone with larger text',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+      await openApp(tester);
+      await tester.tap(find.byKey(const Key('tab-1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('timetable-tools')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const Key('timetable-settings')));
+      await tester.pumpAndSettle();
+      expect(find.text('每周显示天数'), findsOneWidget);
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
   );
