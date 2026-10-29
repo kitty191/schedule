@@ -14,6 +14,7 @@ class TimetableSettings {
     this.weekStart = 1,
     this.visibleDays = 7,
     this.periodView = true,
+    this.heightPercent = 100,
     this.firstStart = 480,
     this.lessonMinutes = 40,
     this.breakMinutes = 5,
@@ -26,6 +27,7 @@ class TimetableSettings {
   final int weekStart, visibleDays, firstStart, lessonMinutes, breakMinutes;
   final int lunchAfter, lunchMinutes, eveningAfter, eveningMinutes;
   final bool periodView;
+  final int heightPercent;
 
   static TimetableSettings defaults() {
     const draft = TimetableSettings(periods: []);
@@ -42,6 +44,7 @@ class TimetableSettings {
       weekStart: v['weekStart'] as int,
       visibleDays: v['visibleDays'] as int,
       periodView: v['periodView'] as bool,
+      heightPercent: v['heightPercent'] as int? ?? 100,
       firstStart: v['firstStart'] as int,
       lessonMinutes: v['lessonMinutes'] as int,
       breakMinutes: v['breakMinutes'] as int,
@@ -60,6 +63,7 @@ class TimetableSettings {
     'weekStart': weekStart,
     'visibleDays': visibleDays,
     'periodView': periodView,
+    'heightPercent': heightPercent,
     'firstStart': firstStart,
     'lessonMinutes': lessonMinutes,
     'breakMinutes': breakMinutes,
@@ -70,6 +74,9 @@ class TimetableSettings {
   });
 
   String? get validationError {
+    if (heightPercent < 60 || heightPercent > 160) {
+      return '课表高度需要在 60% 至 160% 之间。';
+    }
     if (weekStart < 1 || weekStart > 7 || ![5, 7].contains(visibleDays)) {
       return '请选择有效的每周起始日和显示天数。';
     }
@@ -134,6 +141,7 @@ class TimetableSettings {
     int? weekStart,
     int? visibleDays,
     bool? periodView,
+    int? heightPercent,
     int? firstStart,
     int? lessonMinutes,
     int? breakMinutes,
@@ -146,6 +154,7 @@ class TimetableSettings {
     weekStart: weekStart ?? this.weekStart,
     visibleDays: visibleDays ?? this.visibleDays,
     periodView: periodView ?? this.periodView,
+    heightPercent: heightPercent ?? this.heightPercent,
     firstStart: firstStart ?? this.firstStart,
     lessonMinutes: lessonMinutes ?? this.lessonMinutes,
     breakMinutes: breakMinutes ?? this.breakMinutes,
@@ -172,27 +181,39 @@ class TimetableAxis {
     TimetableSettings settings, {
     required int earliest,
     required int latest,
+    double minimumPeriodHeight = 0,
   }) {
+    final scale = settings.heightPercent / 100;
     final first = settings.periods.first.start;
     final last = settings.periods.last.end;
     if (!settings.periodView) {
       final start = (earliest < first ? earliest : first) ~/ 60 * 60;
       final end = ((latest > last ? latest : last) / 60).ceil() * 60;
-      _add(start, end, (end - start) * 1.2);
+      _add(start, end, (end - start) * 1.2 * scale);
       return;
     }
-    if (earliest < first) _add(earliest, first, (first - earliest) * 0.9);
+    if (earliest < first) {
+      _add(earliest, first, (first - earliest) * 0.9 * scale);
+    }
     for (var i = 0; i < settings.periods.length; i++) {
       final p = settings.periods[i];
       if (i > 0) {
         final previous = settings.periods[i - 1];
         if (p.start > previous.end) {
-          _add(previous.end, p.start, p.start - previous.end >= 60 ? 32 : 12);
+          _add(
+            previous.end,
+            p.start,
+            (p.start - previous.end >= 60 ? 32 : 12) * scale,
+          );
         }
       }
-      _add(p.start, p.end, 76);
+      _add(
+        p.start,
+        p.end,
+        76 * scale < minimumPeriodHeight ? minimumPeriodHeight : 76 * scale,
+      );
     }
-    if (latest > last) _add(last, latest, (latest - last) * 0.9);
+    if (latest > last) _add(last, latest, (latest - last) * 0.9 * scale);
   }
   final _segments = <_AxisSegment>[];
   double height = 0;

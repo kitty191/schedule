@@ -11,11 +11,20 @@ data class CourseSpec(
     val leadMinutes: Int? = null, val kind: String = "course",
 )
 
+enum class CoursePhase { UPCOMING, IN_CLASS, ENDING_SOON }
+
 data class CourseOccurrence(val course: CourseSpec, val start: Long, val end: Long) {
     val key: String get() = "${course.id}:$start"
+    val endingKey: String get() = "$key:$end"
+    val endingReminderAt: Long? get() = if (course.kind == "event") null else maxOf(start, end - 10 * 60_000L)
+    fun phase(now: Long): CoursePhase = when {
+        now < start -> CoursePhase.UPCOMING
+        endingReminderAt != null && now >= endingReminderAt!! && now < end -> CoursePhase.ENDING_SOON
+        else -> CoursePhase.IN_CLASS
+    }
 }
 
-data class CoursePlan(val active: CourseOccurrence?, val nextWake: Long?)
+data class CoursePlan(val active: CourseOccurrence?, val nextWake: Long?, val nextRefresh: Long? = null)
 
 object CoursePlanner {
     fun plan(
@@ -49,9 +58,12 @@ object CoursePlanner {
         occurrences.sortWith(compareBy<CourseOccurrence> { it.start }.thenBy { it.course.id })
         fun lead(occurrence: CourseOccurrence) = (occurrence.course.leadMinutes ?: leadMinutes) * 60_000L
         val active = occurrences.firstOrNull { now >= it.start - lead(it) && now < it.end }
-        val boundaries = occurrences.flatMap { listOf(it.start - lead(it), it.start, it.end) }
+        // Only reminder boundaries use wake-up alarms. Cosmetic minute refreshes
+        // and the start-state transition must not consume allow-while-idle quota.
+        val boundaries = occurrences.flatMap { listOfNotNull(it.start - lead(it), it.endingReminderAt, it.end) }
             .filter { it > now }
-        val wake = (boundaries + listOfNotNull(active?.let { now + 60_000L })).minOrNull()
-        return CoursePlan(active, wake)
+        val wake = boundaries.minOrNull()
+        val refresh = active?.takeIf { now < it.start }?.let { minOf(now + 60_000L, it.start) }
+        return CoursePlan(active, wake, refresh)
     }
 }

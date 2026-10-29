@@ -119,12 +119,31 @@ class DeniedBridge extends LiveUpdateBridge {
   Future<LiveUpdateStatus> requestPermission() async => denied;
 }
 
-Future<void> openApp(WidgetTester tester) async {
+class EndingPreviewBridge extends LiveUpdateBridge {
+  bool active = false;
+  Map<String, Object>? previewed;
+  @override
+  Future<LiveUpdateStatus> status() async => LiveUpdateStatus(
+    supported: true,
+    notificationsEnabled: true,
+    promotionAllowed: true,
+    active: active,
+    promoted: active,
+  );
+  @override
+  Future<LiveUpdateStatus> previewEnding(Map<String, Object> course) async {
+    previewed = course;
+    active = true;
+    return status();
+  }
+}
+
+Future<void> openApp(WidgetTester tester, {LiveUpdateBridge? bridge}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         appProvider.overrideWith(MemoryController.new),
-        bridgeProvider.overrideWithValue(DeniedBridge()),
+        bridgeProvider.overrideWithValue(bridge ?? DeniedBridge()),
         calendarFilePickerProvider.overrideWithValue(
           () async => CalendarFile(
             'example.ics',
@@ -433,6 +452,100 @@ void main() {
       await tester.tap(find.byKey(const Key('timetable-settings')));
       await tester.pumpAndSettle();
       expect(find.text('每周显示天数'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets('Compact height is saved and visibly shortens timetable rows', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 852);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    await openApp(tester);
+    await tester.tap(find.byKey(const Key('tab-1')));
+    await tester.pumpAndSettle();
+    final before =
+        tester.getTopLeft(find.byKey(const Key('period-label-2'))).dy -
+        tester.getTopLeft(find.byKey(const Key('period-label-1'))).dy;
+    await tester.tap(find.byKey(const Key('timetable-tools')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('timetable-settings')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('height-60')),
+      180,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView).last,
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('height-60')));
+    await tester.pumpAndSettle();
+    expect(find.text('60%'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('save-timetable')));
+    await tester.pumpAndSettle();
+    final after =
+        tester.getTopLeft(find.byKey(const Key('period-label-2'))).dy -
+        tester.getTopLeft(find.byKey(const Key('period-label-1'))).dy;
+    expect(after, lessThan(before * 0.8));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'Ending reminder preview selects a real course and exposes the result',
+    (tester) async {
+      final bridge = EndingPreviewBridge();
+      MemoryController.seed = [
+        Course(
+          id: 2,
+          name: '下课提示课程',
+          location: 'B402',
+          weekday: DateTime.now().weekday,
+          startMinute: 480,
+          endMinute: 540,
+          colorIndex: 0,
+        ),
+      ];
+      await openApp(tester, bridge: bridge);
+      await tester.tap(find.byKey(const Key('tab-2')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('提醒设置'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('preview-ending')),
+        240,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView).last,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('preview-ending')));
+      await tester.pumpAndSettle();
+      expect(bridge.previewed?['id'], 2);
+      expect(bridge.previewed?['name'], '下课提示课程');
+      await tester.scrollUntilVisible(
+        find.text('下课提醒预览已发送，请回到桌面查看流体云。'),
+        120,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView).last,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('下课提醒预览已发送，请回到桌面查看流体云。'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

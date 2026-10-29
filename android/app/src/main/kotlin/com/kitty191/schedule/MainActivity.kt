@@ -30,6 +30,8 @@ class MainActivity : FlutterActivity() {
                             replyAfterUpdate(result)
                         }
                         "preview" -> requestNotificationPermission(result, call.arguments as Map<*, *>)
+                        "previewEnding" -> requestNotificationPermission(result,
+                            (call.arguments as Map<*, *>) + mapOf("previewEnding" to true))
                         "stop" -> { CourseScheduler.stop(this); replyAfterUpdate(result) }
                         "settings" -> { openNotificationSettings(); result.success(null) }
                         "exactSettings" -> {

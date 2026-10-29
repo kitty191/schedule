@@ -11,8 +11,8 @@ import org.json.JSONObject
 
 object CourseScheduler {
     private fun prefs(context: Context) = context.getSharedPreferences("course_reminders", Context.MODE_PRIVATE)
-    private fun alarmIntent(context: Context) = PendingIntent.getBroadcast(
-        context, 1010, Intent(context, CourseAlarmReceiver::class.java),
+    private fun alarmIntent(context: Context, refresh: Boolean = false) = PendingIntent.getBroadcast(
+        context, if (refresh) 1011 else 1010, Intent(context, CourseAlarmReceiver::class.java),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
@@ -48,7 +48,7 @@ object CourseScheduler {
             .putString("courses", courses.toString())
             .putBoolean("enabled", data["enabled"] == true)
             .putInt("lead", lead)
-            .remove("preview").remove("previewUntil")
+            .remove("preview").remove("previewUntil").remove("previewEndAt")
             .commit()) { "系统提醒配置未能保存，请重试。" }
         refresh(context)
     }
@@ -58,14 +58,19 @@ object CourseScheduler {
         parseCourse(value)
         val until = System.currentTimeMillis() + 5 * 60_000L
         check(prefs(context).edit().putString("preview", value.toString())
-            .putLong("previewUntil", until).commit())
+            .putLong("previewUntil", until)
+            .putLong("previewEndAt", if (course["previewEnding"] == true) System.currentTimeMillis() + 10 * 60_000L else 0)
+            .commit())
         refresh(context)
     }
 
     fun stop(context: Context) {
+        val preferences = prefs(context)
+        val isPreview = preferences.getLong("previewUntil", 0) > System.currentTimeMillis()
         val occurrence = currentPlan(context).active
-        check(prefs(context).edit().remove("preview").remove("previewUntil")
-            .putString("dismissed", occurrence?.key).commit())
+        val edit = preferences.edit().remove("preview").remove("previewUntil").remove("previewEndAt")
+        if (!isPreview) edit.putString("dismissed", occurrence?.key)
+        check(edit.commit())
         LiveUpdateNotification.cancel(context)
         refresh(context)
     }
@@ -86,18 +91,28 @@ object CourseScheduler {
         val preview = preferences.getString("preview", null)
         val plan = currentPlan(context)
         var next = plan.nextWake
+        var nextRefresh = plan.nextRefresh
         if (preview != null && previewUntil > now) {
-            LiveUpdateNotification.show(context, parseCourse(JSONObject(preview)), null, previewUntil)
+            LiveUpdateNotification.show(context, parseCourse(JSONObject(preview)), null, previewUntil,
+                previewEndAt = preferences.getLong("previewEndAt", 0).takeIf { it > now })
             next = previewUntil
+            nextRefresh = null
         } else {
-            if (preview != null) preferences.edit().remove("preview").remove("previewUntil").apply()
+            if (preview != null) preferences.edit().remove("preview").remove("previewUntil").remove("previewEndAt").apply()
             val active = plan.active
             if (active == null) LiveUpdateNotification.cancel(context)
-            else LiveUpdateNotification.show(context, active.course, active, active.end)
+            else {
+                val newEnding = active.phase(now) == CoursePhase.ENDING_SOON &&
+                    preferences.getString("endingAnnounced", null) != active.endingKey
+                val posted = LiveUpdateNotification.show(context, active.course, active, active.end, alert = newEnding)
+                if (posted && newEnding) preferences.edit().putString("endingAnnounced", active.endingKey).apply()
+            }
         }
         val manager = context.getSystemService(AlarmManager::class.java)
         val pending = alarmIntent(context)
         manager.cancel(pending)
+        val cosmetic = alarmIntent(context, refresh = true)
+        manager.cancel(cosmetic)
         if (next != null) {
             try {
                 if (Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms()) {
@@ -110,6 +125,18 @@ object CourseScheduler {
                 manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pending)
             }
         }
+        if (nextRefresh != null) {
+            // RTC never wakes a sleeping phone. Live countdowns are rendered by
+            // the system chronometer; these refreshes only update the awake UI.
+            try {
+                if (Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms()) {
+                    manager.setExact(AlarmManager.RTC, nextRefresh, cosmetic)
+                } else manager.set(AlarmManager.RTC, nextRefresh, cosmetic)
+            } catch (_: SecurityException) {
+                manager.set(AlarmManager.RTC, nextRefresh, cosmetic)
+            }
+        }
+
     }
 }
 

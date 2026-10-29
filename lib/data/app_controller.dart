@@ -29,10 +29,17 @@ class AppController extends AsyncNotifier<AppData> {
   @override
   Future<AppData> build() => _loadAndSync();
 
-  Future<AppData> _loadAndSync() async {
+  Future<AppData> _loadAndSync({bool syncNotifications = true}) async {
     final database = ref.read(databaseProvider);
     final courses = await database.loadCourses();
     final preferences = await database.loadPreferences();
+    if (!syncNotifications) {
+      return AppData(
+        courses,
+        preferences,
+        syncError: state.asData?.value.syncError,
+      );
+    }
     String? error;
     try {
       await ref.read(bridgeProvider).configure({
@@ -64,8 +71,19 @@ class AppController extends AsyncNotifier<AppData> {
   }
 
   Future<void> updateTimetable(TimetableSettings settings) async {
-    await ref.read(databaseProvider).saveTimetableSettings(settings);
-    state = AsyncData(await _loadAndSync());
+    final database = ref.read(databaseProvider);
+    final previous = TimetableSettings.decode(
+      (await database.loadPreferences()).timetableConfig,
+    );
+    final timesChanged =
+        previous.periods.length != settings.periods.length ||
+        List.generate(settings.periods.length, (i) => i).any(
+          (i) =>
+              previous.periods[i].start != settings.periods[i].start ||
+              previous.periods[i].end != settings.periods[i].end,
+        );
+    await database.saveTimetableSettings(settings);
+    state = AsyncData(await _loadAndSync(syncNotifications: timesChanged));
   }
 
   Future<int> importCalendar(

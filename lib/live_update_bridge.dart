@@ -37,6 +37,8 @@ class LiveUpdateBridge {
       _invoke('configure', data);
   Future<LiveUpdateStatus> preview(Map<String, Object> course) =>
       _invoke('preview', course);
+  Future<LiveUpdateStatus> previewEnding(Map<String, Object> course) =>
+      _invoke('previewEnding', course);
   Future<LiveUpdateStatus> stop() => _invoke('stop');
   Future<void> openSettings() => channel.invokeMethod<void>('settings');
   Future<void> openExactSettings() =>

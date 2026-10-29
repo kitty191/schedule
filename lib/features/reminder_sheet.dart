@@ -216,10 +216,12 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                       ],
                     ),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(8, 12, 8, 24),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
                     child: MutedText(
-                      '课前显示下一节课，上课后切换状态，下课后自动结束。日程显示开始/结束状态。导入时沿用文件提醒的课程优先使用文件时间。重叠时优先显示最早开始且尚未结束的一项。',
+                      _android
+                          ? '课前显示下一节课，上课后切换状态，下课前 10 分钟以流体云显示“快下课”和倒计时，下课后自动结束。日程显示开始/结束状态。导入时沿用文件提醒的课程优先使用文件时间。重叠时优先显示最早开始且尚未结束的一项。'
+                          : 'iOS 使用普通课前通知。导入时沿用文件提醒的课程优先使用文件时间。',
                     ),
                   ),
                   if (_status != null)
@@ -311,6 +313,39 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                                 }),
                           child: const Text('发送课程预览'),
                         ),
+                        if (_android)
+                          CupertinoButton(
+                            key: const Key('preview-ending'),
+                            padding: const EdgeInsets.only(top: 8),
+                            onPressed:
+                                _busy ||
+                                    data == null ||
+                                    !data.courses.any((c) => !isEvent(c))
+                                ? null
+                                : () => _run(() async {
+                                    final course =
+                                        upcomingToday(
+                                          data.courses
+                                              .where((c) => !isEvent(c))
+                                              .toList(),
+                                          DateTime.now(),
+                                        ) ??
+                                        data.courses.firstWhere(
+                                          (c) => !isEvent(c),
+                                        );
+                                    final status = await ref
+                                        .read(bridgeProvider)
+                                        .previewEnding(coursePayload(course));
+                                    if (mounted) {
+                                      setState(
+                                        () => _message = status.active
+                                            ? '下课提醒预览已发送，请回到桌面查看流体云。'
+                                            : '系统未显示提醒，请检查通知设置。',
+                                      );
+                                    }
+                                  }),
+                            child: const Text('预览下课前 10 分钟提醒'),
+                          ),
                         CupertinoButton(
                           padding: const EdgeInsets.only(top: 8),
                           onPressed: _busy || _status?.active != true

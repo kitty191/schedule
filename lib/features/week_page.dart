@@ -319,7 +319,15 @@ class WeekGrid extends StatelessWidget {
     final latest = all.isEmpty
         ? settings.periods.last.end
         : all.map((p) => p.end).reduce(math.max);
-    final axis = TimetableAxis(settings, earliest: earliest, latest: latest);
+    final textScale = MediaQuery.textScalerOf(context);
+    final labelHeight =
+        3 + textScale.scale(14) * 1.05 + 4 + textScale.scale(8.5) * 1.1 * 2 + 4;
+    final axis = TimetableAxis(
+      settings,
+      earliest: earliest,
+      latest: latest,
+      minimumPeriodHeight: labelHeight,
+    );
     final firstHour = math.min(settings.periods.first.start, earliest) ~/ 60;
     final lastHour = (math.max(settings.periods.last.end, latest) / 60).ceil();
     const left = 52.0;
@@ -436,6 +444,7 @@ class WeekGrid extends StatelessWidget {
                                   key: Key('period-label-${i + 1}'),
                                   style: const TextStyle(
                                     fontSize: 14,
+                                    height: 1.05,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -444,6 +453,7 @@ class WeekGrid extends StatelessWidget {
                                   clockText(settings.periods[i].start),
                                   style: const TextStyle(
                                     fontSize: 8.5,
+                                    height: 1.1,
                                     color: CupertinoColors.secondaryLabel,
                                   ),
                                 ),
@@ -452,6 +462,7 @@ class WeekGrid extends StatelessWidget {
                                   clockText(settings.periods[i].end),
                                   style: const TextStyle(
                                     fontSize: 8.5,
+                                    height: 1.1,
                                     color: CupertinoColors.secondaryLabel,
                                   ),
                                 ),

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -12,9 +13,11 @@ import 'package:schedule/live_update_bridge.dart';
 
 class RecordingBridge extends LiveUpdateBridge {
   Map<String, Object>? configured;
+  int calls = 0;
   @override
   Future<LiveUpdateStatus> configure(Map<String, Object> value) async {
     configured = value;
+    calls++;
     return const LiveUpdateStatus(
       supported: true,
       notificationsEnabled: true,
@@ -265,6 +268,69 @@ void main() {
     expect(
       TimetableSettings.decode(prefs.timetableConfig).periods,
       hasLength(12),
+    );
+  });
+  test('Height density is backward compatible and scales both period and hourly axes', () {
+    final original = TimetableSettings.defaults();
+    final legacy = jsonDecode(original.encode()) as Map<String, dynamic>
+      ..remove('heightPercent');
+    expect(TimetableSettings.decode(jsonEncode(legacy)).heightPercent, 100);
+    final compact = original.copyWith(heightPercent: 60);
+    expect(TimetableSettings.decode(compact.encode()).heightPercent, 60);
+    final normalAxis = TimetableAxis(original, earliest: 480, latest: 1300);
+    final compactAxis = TimetableAxis(compact, earliest: 480, latest: 1300);
+    expect(compactAxis.height, closeTo(normalAxis.height * 0.6, 0.01));
+    expect(compactAxis.at(565), closeTo(normalAxis.at(565) * 0.6, 0.01));
+    expect(
+      (compactAxis.minuteAt(compactAxis.at(610)) - 610).abs(),
+      lessThanOrEqualTo(1),
+    );
+    final hourly = TimetableAxis(
+      compact.copyWith(periodView: false),
+      earliest: 480,
+      latest: 1300,
+    );
+    expect(hourly.at(540) - hourly.at(480), closeTo(43.2, 0.01));
+    final accessible = TimetableAxis(
+      compact,
+      earliest: 480,
+      latest: 1300,
+      minimumPeriodHeight: 65,
+    );
+    expect(accessible.at(520), 65);
+    expect(original.copyWith(heightPercent: 59).validationError, isNotNull);
+    expect(original.copyWith(heightPercent: 161).validationError, isNotNull);
+  });
+
+  test('Changing only height preserves real course times and does not reschedule native notifications', () async {
+    final db = ScheduleDatabase(NativeDatabase.memory());
+    final bridge = RecordingBridge();
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        bridgeProvider.overrideWithValue(bridge),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await db.close();
+    });
+    final original = TimetableSettings.defaults();
+    await db.saveCourse(linked(original));
+    await container.read(appProvider.future);
+    final before = (await db.loadCourses()).single;
+    final calls = bridge.calls;
+    await container
+        .read(appProvider.notifier)
+        .updateTimetable(original.copyWith(heightPercent: 60));
+    final after = (await db.loadCourses()).single;
+    expect(after.startMinute, before.startMinute);
+    expect(after.endMinute, before.endMinute);
+    expect(bridge.calls, calls);
+    expect(
+      TimetableSettings.decode((await db.loadPreferences()).timetableConfig)
+          .heightPercent,
+      60,
     );
   });
 }

@@ -23,6 +23,11 @@ jobs:
           flutter-version: '3.47.8'
           channel: stable
           cache: true
+      - name: Verify Gradle wrapper JAR
+        run: sha256sum --check gradle-wrapper.jar.sha256
+        working-directory: android/gradle/wrapper
+      - run: ./gradlew --version
+        working-directory: android
       - run: flutter pub get --enforce-lockfile
       - run: flutter analyze
       - run: flutter test

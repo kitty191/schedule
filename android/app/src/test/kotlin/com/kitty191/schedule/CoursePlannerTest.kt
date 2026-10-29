@@ -94,4 +94,51 @@ class CoursePlannerTest {
         assertNull(stopped.active)
         assertNull(stopped.nextWake)
     }
+
+    @Test fun tenMinuteBoundarySwitchesIntoEndingPhaseAndEndsOnTime() {
+        val before = plan(time(29, 9, 49))
+        assertEquals(CoursePhase.IN_CLASS, before.active!!.phase(time(29,9,49)))
+        assertEquals(time(29,9,50), before.nextWake)
+        assertNull(before.nextRefresh)
+        val ending = plan(time(29,9,50))
+        assertEquals(CoursePhase.ENDING_SOON, ending.active!!.phase(time(29,9,50)))
+        assertEquals(CoursePhase.ENDING_SOON, ending.active!!.phase(time(29,9,59)))
+        assertEquals(time(29,10,0), ending.nextWake)
+        assertNull(plan(time(29,10,0)).active)
+    }
+    @Test fun cosmeticRefreshDoesNotConsumeReminderWakeBoundary() {
+        val before = plan(time(29,8,25))
+        assertEquals(time(29,8,26), before.nextRefresh)
+        assertEquals(time(29,9,50), before.nextWake)
+        val started = plan(time(29,8,30))
+        assertNull(started.nextRefresh)
+        assertEquals(time(29,9,50), started.nextWake)
+    }
+    @Test fun shortClassesStartEndingReminderAtStartInsteadOfBeforeClass() {
+        val short = course.copy(endMinute = 8*60+38)
+        val upcoming = plan(time(29,8,29), listOf(short)).active!!
+        assertEquals(CoursePhase.UPCOMING, upcoming.phase(time(29,8,29)))
+        assertEquals(time(29,8,30), upcoming.endingReminderAt)
+        assertEquals(CoursePhase.ENDING_SOON, plan(time(29,8,30),listOf(short)).active!!.phase(time(29,8,30)))
+        assertNull(plan(time(29,8,38),listOf(short)).active)
+    }
+    @Test fun importedClassHasTheSameEndingBoundaryAndDismissalIsRespected() {
+        val finite = course.copy(fixedOccurrences = listOf(Pair(time(29,8,30),time(29,10,0))))
+        val ending = plan(time(29,9,50),listOf(finite)).active!!
+        assertEquals(CoursePhase.ENDING_SOON, ending.phase(time(29,9,50)))
+        val stopped = plan(time(29,9,51),listOf(finite),ending.key)
+        assertNull(stopped.active); assertNull(stopped.nextWake)
+    }
+    @Test fun ordinaryEventsHaveNoClassEndingReminder() {
+        val event = course.copy(kind = "event")
+        val active = plan(time(29,9,55),listOf(event)).active!!
+        assertNull(active.endingReminderAt)
+        assertEquals(CoursePhase.IN_CLASS, active.phase(time(29,9,55)))
+    }
+    @Test fun rescheduledEndGetsANewEndingAnnouncementKey() {
+        val old = CourseOccurrence(course,time(29,8,30),time(29,10,0))
+        val changed = old.copy(end = time(29,10,30))
+        assertNotEquals(old.endingKey, changed.endingKey)
+        assertEquals(time(29,10,20), changed.endingReminderAt)
+    }
 }

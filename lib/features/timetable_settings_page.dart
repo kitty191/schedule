@@ -217,6 +217,83 @@ class _TimetableSettingsPageState extends ConsumerState<TimetableSettingsPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 14),
+            WhiteCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '课表高度',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${_settings.heightPercent}%',
+                        key: const Key('height-percent'),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: CupertinoColors.activeBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: CupertinoSlider(
+                      key: const Key('timetable-height'),
+                      value: _settings.heightPercent.toDouble(),
+                      min: 60,
+                      max: 160,
+                      divisions: 20,
+                      onChanged: _busy
+                          ? null
+                          : (value) => setState(
+                              () => _settings = _settings.copyWith(
+                                heightPercent: value.round(),
+                              ),
+                            ),
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (final option in const [
+                        (60, '紧凑'),
+                        (100, '标准'),
+                        (140, '舒展'),
+                      ])
+                        CupertinoButton(
+                          key: Key('height-${option.$1}'),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          onPressed: _busy
+                              ? null
+                              : () => setState(
+                                  () => _settings = _settings.copyWith(
+                                    heightPercent: option.$1,
+                                  ),
+                                ),
+                          child: Text(
+                            option.$2,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const MutedText('调低可在一屏显示更多课程；只调整显示高度，不改变上课时间。大字体下会保留可读高度。'),
+                ],
+              ),
+            ),
             const Padding(
               padding: EdgeInsets.fromLTRB(8, 10, 8, 22),
               child: MutedText(
