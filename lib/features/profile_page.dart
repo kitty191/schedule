@@ -129,7 +129,7 @@ class ProfilePage extends ConsumerWidget {
                 '关于今天课程',
                 () => showMessage(
                   context,
-                  '今天课程 v0.7.0\n\n日程、整周课表和本地 .ics 导入。无需登录。\n\nAndroid 支持系统实时提醒；iOS 使用普通通知，自动安排最近 60 次提醒，需要定期打开应用续排。',
+                  '今天课程 v0.7.1\n\n日程、整周课表和本地 .ics 导入。无需登录。\n\nAndroid 支持系统实时提醒；iOS 使用普通通知，自动安排最近 60 次提醒，需要定期打开应用续排。',
                 ),
               ),
             ),

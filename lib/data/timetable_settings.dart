@@ -192,8 +192,16 @@ class TimetableAxis {
       _add(start, end, (end - start) * 1.2 * scale);
       return;
     }
+    final rowHeight = (76 * scale).clamp(minimumPeriodHeight, double.infinity);
+    // Extend using the adjacent period density, including accessibility height.
+    // A late class must not collapse simply because it is outside the template.
     if (earliest < first) {
-      _add(earliest, first, (first - earliest) * 0.9 * scale);
+      final period = settings.periods.first;
+      _add(
+        earliest,
+        first,
+        (first - earliest) * rowHeight / (period.end - period.start),
+      );
     }
     for (var i = 0; i < settings.periods.length; i++) {
       final p = settings.periods[i];
@@ -207,13 +215,16 @@ class TimetableAxis {
           );
         }
       }
+      _add(p.start, p.end, rowHeight);
+    }
+    if (latest > last) {
+      final period = settings.periods.last;
       _add(
-        p.start,
-        p.end,
-        76 * scale < minimumPeriodHeight ? minimumPeriodHeight : 76 * scale,
+        last,
+        latest,
+        (latest - last) * rowHeight / (period.end - period.start),
       );
     }
-    if (latest > last) _add(last, latest, (latest - last) * 0.9 * scale);
   }
   final _segments = <_AxisSegment>[];
   double height = 0;

@@ -506,6 +506,34 @@ class WeekGrid extends StatelessWidget {
                             ),
                           ),
                         ],
+                      if (settings.periodView)
+                        for (var hour = firstHour; hour <= lastHour; hour++)
+                          if (hour * 60 >= earliest &&
+                              hour * 60 <= latest &&
+                              (hour * 60 < settings.periods.first.start ||
+                                  hour * 60 > settings.periods.last.end)) ...[
+                            Positioned(
+                              left: 5,
+                              top: axis.at(hour * 60),
+                              child: Text(
+                                clockText(hour * 60),
+                                key: Key('extended-time-$hour'),
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  color: CupertinoColors.secondaryLabel,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              left: left,
+                              right: 10,
+                              top: axis.at(hour * 60),
+                              child: Container(
+                                height: 0.5,
+                                color: const Color(0xFFE5E8F0),
+                              ),
+                            ),
+                          ],
                       for (var day = 0; day < days.length; day++)
                         for (final p in placements[day])
                           Positioned(
@@ -520,6 +548,7 @@ class WeekGrid extends StatelessWidget {
                               22,
                               axis.at(p.end) - axis.at(p.start) - 3,
                             ),
+                            key: Key('course-card-${p.course.id}-$day'),
                             child: Semantics(
                               label:
                                   '${p.course.name} ${weekdays[days[day].weekday - 1]} ${clockText(p.start)} ${p.course.location}',
@@ -545,41 +574,7 @@ class WeekGrid extends StatelessWidget {
                                             .withValues(alpha: 0.79),
                                     borderRadius: BorderRadius.circular(9),
                                   ),
-                                  child: LayoutBuilder(
-                                    builder: (context, tile) => Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            p.course.name,
-                                            maxLines: tile.maxHeight > 90
-                                                ? 5
-                                                : 3,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              height: 1.2,
-                                              fontWeight: FontWeight.w600,
-                                              color: CupertinoColors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        if (tile.maxHeight > 68 &&
-                                            p.course.location.isNotEmpty)
-                                          Text(
-                                            p.course.location,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                              height: 1.2,
-                                              color: CupertinoColors.white,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
+                                  child: _CourseText(course: p.course),
                                 ),
                               ),
                             ),
@@ -594,4 +589,97 @@ class WeekGrid extends StatelessWidget {
       },
     );
   }
+}
+
+/// Fit complete text lines to the real card height, never clip half a line.
+class _CourseText extends StatelessWidget {
+  const _CourseText({required this.course});
+  final Course course;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final scaler = MediaQuery.textScalerOf(context);
+      final baseStyle = DefaultTextStyle.of(context).style;
+      TextStyle style(double size, {bool title = false}) => baseStyle.copyWith(
+        fontSize: size,
+        height: 1.2,
+        color: CupertinoColors.white,
+        fontWeight: title ? FontWeight.w600 : FontWeight.normal,
+      );
+      double measure(String text, TextStyle textStyle, {int? maxLines}) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: textStyle),
+          textDirection: Directionality.of(context),
+          textScaler: scaler,
+          maxLines: maxLines,
+          ellipsis: maxLines == null ? null : '…',
+        )..layout(maxWidth: box.maxWidth);
+        final height = painter.height;
+        painter.dispose();
+        return height;
+      }
+
+      var font = 11.0;
+      final locationStyle = style(9);
+      final locationHeight = course.location.isEmpty
+          ? 0.0
+          : measure(course.location, locationStyle, maxLines: 2);
+      final reserve = locationHeight == 0 ? 0.0 : locationHeight + 4;
+      while (font > 9 &&
+          measure(course.name, style(font, title: true)) + reserve >
+              box.maxHeight) {
+        font -= 0.5;
+      }
+      final line = measure('字', style(font, title: true));
+      // Preserve at least two title lines before adding classroom details.
+      var locationLines = course.location.isEmpty ? 0 : 2;
+      var usedLocationHeight = locationHeight;
+      if (box.maxHeight < line * 2 + usedLocationHeight + 4) {
+        locationLines = course.location.isEmpty ? 0 : 1;
+        usedLocationHeight = course.location.isEmpty
+            ? 0
+            : measure(course.location, locationStyle, maxLines: 1);
+      }
+      if (box.maxHeight < line * 2 + usedLocationHeight + 4) {
+        locationLines = 0;
+        usedLocationHeight = 0;
+      }
+      final titleSpace =
+          box.maxHeight - usedLocationHeight - (locationLines > 0 ? 4 : 0);
+      final nameLines = math.max(1, ((titleSpace + 0.001) / line).floor());
+      final name = Text(
+        course.name,
+        maxLines: nameLines,
+        overflow: TextOverflow.ellipsis,
+        style: style(font, title: true),
+      );
+      if (box.maxHeight < line) {
+        return FittedBox(
+          alignment: Alignment.topLeft,
+          fit: BoxFit.scaleDown,
+          child: Text(
+            course.name,
+            maxLines: 1,
+            style: style(font, title: true),
+          ),
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: name),
+          if (locationLines > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              course.location,
+              maxLines: locationLines,
+              overflow: TextOverflow.ellipsis,
+              style: locationStyle,
+            ),
+          ],
+        ],
+      );
+    },
+  );
 }
