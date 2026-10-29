@@ -36,5 +36,5 @@ jobs:
         working-directory: android
       - uses: actions/upload-artifact@v4
         with:
-          name: today-courses-arm64-test
+          name: today-courses-arm64
           path: build/app/outputs/flutter-apk/app-release.apk

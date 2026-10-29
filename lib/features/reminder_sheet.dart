@@ -8,15 +8,17 @@ import '../data/timetable.dart';
 import '../live_update_bridge.dart';
 import 'components.dart';
 import 'reminder_time_picker.dart';
+import 'editable_sheet.dart';
 
-Future<void> showReminderSheet(BuildContext context) =>
-    showCupertinoModalPopup<void>(
-      context: context,
-      builder: (_) => const ReminderSheet(),
-    );
+Future<void> showReminderSheet(BuildContext context) => showEditableSheet<void>(
+  context,
+  topGap: 0.14,
+  builder: (_, controller) => ReminderSheet(scrollController: controller),
+);
 
 class ReminderSheet extends ConsumerStatefulWidget {
-  const ReminderSheet({super.key});
+  const ReminderSheet({super.key, this.scrollController});
+  final ScrollController? scrollController;
   @override
   ConsumerState<ReminderSheet> createState() => _ReminderSheetState();
 }
@@ -83,25 +85,11 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
   Widget build(BuildContext context) {
     final data = ref.watch(appProvider).asData?.value;
     final preferences = data?.preferences;
-    return Container(
-      height: MediaQuery.sizeOf(context).height * 0.86,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF5F6FA),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
+    return CupertinoPageScaffold(
+      key: const Key('reminder-sheet'),
       child: SafeArea(
-        top: false,
         child: Column(
           children: [
-            const SizedBox(height: 10),
-            Container(
-              width: 36,
-              height: 5,
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey3,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 8, 12, 8),
               child: Row(
@@ -124,6 +112,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
             ),
             Expanded(
               child: ListView(
+                controller: widget.scrollController,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   WhiteCard(

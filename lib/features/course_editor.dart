@@ -9,6 +9,17 @@ import '../data/database.dart';
 import '../data/timetable.dart';
 import '../data/timetable_settings.dart';
 import 'components.dart';
+import 'editable_sheet.dart';
+
+Future<void> showCourseEditorSheet(BuildContext context, Course course) =>
+    showEditableSheet<void>(
+      context,
+      builder: (_, controller) => CourseEditor(
+        course: course,
+        asSheet: true,
+        scrollController: controller,
+      ),
+    );
 
 class CourseEditor extends ConsumerStatefulWidget {
   const CourseEditor({
@@ -19,11 +30,15 @@ class CourseEditor extends ConsumerStatefulWidget {
     this.initialWeekday,
     this.initialPeriod,
     this.initialStartMinute,
+    this.asSheet = false,
+    this.scrollController,
   });
   final Course? course;
   final String kind;
   final DateTime? initialDate;
   final int? initialWeekday, initialPeriod, initialStartMinute;
+  final bool asSheet;
+  final ScrollController? scrollController;
   @override
   ConsumerState<CourseEditor> createState() => _CourseEditorState();
 }
@@ -321,7 +336,16 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
 
   @override
   Widget build(BuildContext context) => CupertinoPageScaffold(
+    key: widget.asSheet ? const Key('course-editor-sheet') : null,
     navigationBar: CupertinoNavigationBar(
+      automaticallyImplyLeading: !widget.asSheet,
+      leading: widget.asSheet
+          ? CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: _saving ? null : () => Navigator.pop(context),
+              child: const Text('取消'),
+            )
+          : null,
       middle: Text(
         widget.course == null
             ? (_event ? '添加日程' : '添加课程')
@@ -335,6 +359,8 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
     ),
     child: SafeArea(
       child: ListView(
+        controller: widget.scrollController,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(20),
         children: [
           const SizedBox(height: 12),

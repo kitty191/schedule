@@ -57,10 +57,17 @@ class _TodayPageState extends ConsumerState<TodayPage>
     super.dispose();
   }
 
-  void _edit([Course? course]) => Navigator.push(
-    context,
-    CupertinoPageRoute<void>(builder: (_) => CourseEditor(course: course)),
-  );
+  void _edit([Course? course]) {
+    if (course != null) {
+      showCourseEditorSheet(context, course);
+    } else {
+      Navigator.push(
+        context,
+        CupertinoPageRoute<void>(builder: (_) => const CourseEditor()),
+      );
+    }
+  }
+
   void _add() => showCupertinoModalPopup<void>(
     context: context,
     builder: (context) => CupertinoActionSheet(
@@ -657,12 +664,7 @@ class AllCoursesPage extends ConsumerWidget {
                           CourseRow(
                             course: course,
                             showWeekday: true,
-                            onTap: () => Navigator.push(
-                              context,
-                              CupertinoPageRoute<void>(
-                                builder: (_) => CourseEditor(course: course),
-                              ),
-                            ),
+                            onTap: () => showCourseEditorSheet(context, course),
                           ),
                       ],
                     ),
