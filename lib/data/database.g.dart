@@ -91,6 +91,59 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _occurrencesMeta = const VerificationMeta(
+    'occurrences',
+  );
+  @override
+  late final GeneratedColumn<String> occurrences = GeneratedColumn<String>(
+    'occurrences',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _importKeyMeta = const VerificationMeta(
+    'importKey',
+  );
+  @override
+  late final GeneratedColumn<String> importKey = GeneratedColumn<String>(
+    'import_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _reminderMinutesMeta = const VerificationMeta(
+    'reminderMinutes',
+  );
+  @override
+  late final GeneratedColumn<int> reminderMinutes = GeneratedColumn<int>(
+    'reminder_minutes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -100,6 +153,11 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
     startMinute,
     endMinute,
     colorIndex,
+    occurrences,
+    importKey,
+    description,
+    kind,
+    reminderMinutes,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -165,6 +223,45 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
         colorIndex.isAcceptableOrUnknown(data['color_index']!, _colorIndexMeta),
       );
     }
+    if (data.containsKey('occurrences')) {
+      context.handle(
+        _occurrencesMeta,
+        occurrences.isAcceptableOrUnknown(
+          data['occurrences']!,
+          _occurrencesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('import_key')) {
+      context.handle(
+        _importKeyMeta,
+        importKey.isAcceptableOrUnknown(data['import_key']!, _importKeyMeta),
+      );
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('reminder_minutes')) {
+      context.handle(
+        _reminderMinutesMeta,
+        reminderMinutes.isAcceptableOrUnknown(
+          data['reminder_minutes']!,
+          _reminderMinutesMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -202,6 +299,26 @@ class $CoursesTable extends Courses with TableInfo<$CoursesTable, Course> {
         DriftSqlType.int,
         data['${effectivePrefix}color_index'],
       )!,
+      occurrences: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}occurrences'],
+      ),
+      importKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}import_key'],
+      ),
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      ),
+      reminderMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}reminder_minutes'],
+      ),
     );
   }
 
@@ -219,6 +336,11 @@ class Course extends DataClass implements Insertable<Course> {
   final int startMinute;
   final int endMinute;
   final int colorIndex;
+  final String? occurrences;
+  final String? importKey;
+  final String? description;
+  final String? kind;
+  final int? reminderMinutes;
   const Course({
     required this.id,
     required this.name,
@@ -227,6 +349,11 @@ class Course extends DataClass implements Insertable<Course> {
     required this.startMinute,
     required this.endMinute,
     required this.colorIndex,
+    this.occurrences,
+    this.importKey,
+    this.description,
+    this.kind,
+    this.reminderMinutes,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -238,6 +365,21 @@ class Course extends DataClass implements Insertable<Course> {
     map['start_minute'] = Variable<int>(startMinute);
     map['end_minute'] = Variable<int>(endMinute);
     map['color_index'] = Variable<int>(colorIndex);
+    if (!nullToAbsent || occurrences != null) {
+      map['occurrences'] = Variable<String>(occurrences);
+    }
+    if (!nullToAbsent || importKey != null) {
+      map['import_key'] = Variable<String>(importKey);
+    }
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || kind != null) {
+      map['kind'] = Variable<String>(kind);
+    }
+    if (!nullToAbsent || reminderMinutes != null) {
+      map['reminder_minutes'] = Variable<int>(reminderMinutes);
+    }
     return map;
   }
 
@@ -250,6 +392,19 @@ class Course extends DataClass implements Insertable<Course> {
       startMinute: Value(startMinute),
       endMinute: Value(endMinute),
       colorIndex: Value(colorIndex),
+      occurrences: occurrences == null && nullToAbsent
+          ? const Value.absent()
+          : Value(occurrences),
+      importKey: importKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(importKey),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      kind: kind == null && nullToAbsent ? const Value.absent() : Value(kind),
+      reminderMinutes: reminderMinutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reminderMinutes),
     );
   }
 
@@ -266,6 +421,11 @@ class Course extends DataClass implements Insertable<Course> {
       startMinute: serializer.fromJson<int>(json['startMinute']),
       endMinute: serializer.fromJson<int>(json['endMinute']),
       colorIndex: serializer.fromJson<int>(json['colorIndex']),
+      occurrences: serializer.fromJson<String?>(json['occurrences']),
+      importKey: serializer.fromJson<String?>(json['importKey']),
+      description: serializer.fromJson<String?>(json['description']),
+      kind: serializer.fromJson<String?>(json['kind']),
+      reminderMinutes: serializer.fromJson<int?>(json['reminderMinutes']),
     );
   }
   @override
@@ -279,6 +439,11 @@ class Course extends DataClass implements Insertable<Course> {
       'startMinute': serializer.toJson<int>(startMinute),
       'endMinute': serializer.toJson<int>(endMinute),
       'colorIndex': serializer.toJson<int>(colorIndex),
+      'occurrences': serializer.toJson<String?>(occurrences),
+      'importKey': serializer.toJson<String?>(importKey),
+      'description': serializer.toJson<String?>(description),
+      'kind': serializer.toJson<String?>(kind),
+      'reminderMinutes': serializer.toJson<int?>(reminderMinutes),
     };
   }
 
@@ -290,6 +455,11 @@ class Course extends DataClass implements Insertable<Course> {
     int? startMinute,
     int? endMinute,
     int? colorIndex,
+    Value<String?> occurrences = const Value.absent(),
+    Value<String?> importKey = const Value.absent(),
+    Value<String?> description = const Value.absent(),
+    Value<String?> kind = const Value.absent(),
+    Value<int?> reminderMinutes = const Value.absent(),
   }) => Course(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -298,6 +468,13 @@ class Course extends DataClass implements Insertable<Course> {
     startMinute: startMinute ?? this.startMinute,
     endMinute: endMinute ?? this.endMinute,
     colorIndex: colorIndex ?? this.colorIndex,
+    occurrences: occurrences.present ? occurrences.value : this.occurrences,
+    importKey: importKey.present ? importKey.value : this.importKey,
+    description: description.present ? description.value : this.description,
+    kind: kind.present ? kind.value : this.kind,
+    reminderMinutes: reminderMinutes.present
+        ? reminderMinutes.value
+        : this.reminderMinutes,
   );
   Course copyWithCompanion(CoursesCompanion data) {
     return Course(
@@ -312,6 +489,17 @@ class Course extends DataClass implements Insertable<Course> {
       colorIndex: data.colorIndex.present
           ? data.colorIndex.value
           : this.colorIndex,
+      occurrences: data.occurrences.present
+          ? data.occurrences.value
+          : this.occurrences,
+      importKey: data.importKey.present ? data.importKey.value : this.importKey,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      reminderMinutes: data.reminderMinutes.present
+          ? data.reminderMinutes.value
+          : this.reminderMinutes,
     );
   }
 
@@ -324,7 +512,12 @@ class Course extends DataClass implements Insertable<Course> {
           ..write('weekday: $weekday, ')
           ..write('startMinute: $startMinute, ')
           ..write('endMinute: $endMinute, ')
-          ..write('colorIndex: $colorIndex')
+          ..write('colorIndex: $colorIndex, ')
+          ..write('occurrences: $occurrences, ')
+          ..write('importKey: $importKey, ')
+          ..write('description: $description, ')
+          ..write('kind: $kind, ')
+          ..write('reminderMinutes: $reminderMinutes')
           ..write(')'))
         .toString();
   }
@@ -338,6 +531,11 @@ class Course extends DataClass implements Insertable<Course> {
     startMinute,
     endMinute,
     colorIndex,
+    occurrences,
+    importKey,
+    description,
+    kind,
+    reminderMinutes,
   );
   @override
   bool operator ==(Object other) =>
@@ -349,7 +547,12 @@ class Course extends DataClass implements Insertable<Course> {
           other.weekday == this.weekday &&
           other.startMinute == this.startMinute &&
           other.endMinute == this.endMinute &&
-          other.colorIndex == this.colorIndex);
+          other.colorIndex == this.colorIndex &&
+          other.occurrences == this.occurrences &&
+          other.importKey == this.importKey &&
+          other.description == this.description &&
+          other.kind == this.kind &&
+          other.reminderMinutes == this.reminderMinutes);
 }
 
 class CoursesCompanion extends UpdateCompanion<Course> {
@@ -360,6 +563,11 @@ class CoursesCompanion extends UpdateCompanion<Course> {
   final Value<int> startMinute;
   final Value<int> endMinute;
   final Value<int> colorIndex;
+  final Value<String?> occurrences;
+  final Value<String?> importKey;
+  final Value<String?> description;
+  final Value<String?> kind;
+  final Value<int?> reminderMinutes;
   const CoursesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -368,6 +576,11 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     this.startMinute = const Value.absent(),
     this.endMinute = const Value.absent(),
     this.colorIndex = const Value.absent(),
+    this.occurrences = const Value.absent(),
+    this.importKey = const Value.absent(),
+    this.description = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.reminderMinutes = const Value.absent(),
   });
   CoursesCompanion.insert({
     this.id = const Value.absent(),
@@ -377,6 +590,11 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     required int startMinute,
     required int endMinute,
     this.colorIndex = const Value.absent(),
+    this.occurrences = const Value.absent(),
+    this.importKey = const Value.absent(),
+    this.description = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.reminderMinutes = const Value.absent(),
   }) : name = Value(name),
        location = Value(location),
        weekday = Value(weekday),
@@ -390,6 +608,11 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     Expression<int>? startMinute,
     Expression<int>? endMinute,
     Expression<int>? colorIndex,
+    Expression<String>? occurrences,
+    Expression<String>? importKey,
+    Expression<String>? description,
+    Expression<String>? kind,
+    Expression<int>? reminderMinutes,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -399,6 +622,11 @@ class CoursesCompanion extends UpdateCompanion<Course> {
       if (startMinute != null) 'start_minute': startMinute,
       if (endMinute != null) 'end_minute': endMinute,
       if (colorIndex != null) 'color_index': colorIndex,
+      if (occurrences != null) 'occurrences': occurrences,
+      if (importKey != null) 'import_key': importKey,
+      if (description != null) 'description': description,
+      if (kind != null) 'kind': kind,
+      if (reminderMinutes != null) 'reminder_minutes': reminderMinutes,
     });
   }
 
@@ -410,6 +638,11 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     Value<int>? startMinute,
     Value<int>? endMinute,
     Value<int>? colorIndex,
+    Value<String?>? occurrences,
+    Value<String?>? importKey,
+    Value<String?>? description,
+    Value<String?>? kind,
+    Value<int?>? reminderMinutes,
   }) {
     return CoursesCompanion(
       id: id ?? this.id,
@@ -419,6 +652,11 @@ class CoursesCompanion extends UpdateCompanion<Course> {
       startMinute: startMinute ?? this.startMinute,
       endMinute: endMinute ?? this.endMinute,
       colorIndex: colorIndex ?? this.colorIndex,
+      occurrences: occurrences ?? this.occurrences,
+      importKey: importKey ?? this.importKey,
+      description: description ?? this.description,
+      kind: kind ?? this.kind,
+      reminderMinutes: reminderMinutes ?? this.reminderMinutes,
     );
   }
 
@@ -446,6 +684,21 @@ class CoursesCompanion extends UpdateCompanion<Course> {
     if (colorIndex.present) {
       map['color_index'] = Variable<int>(colorIndex.value);
     }
+    if (occurrences.present) {
+      map['occurrences'] = Variable<String>(occurrences.value);
+    }
+    if (importKey.present) {
+      map['import_key'] = Variable<String>(importKey.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (reminderMinutes.present) {
+      map['reminder_minutes'] = Variable<int>(reminderMinutes.value);
+    }
     return map;
   }
 
@@ -458,7 +711,12 @@ class CoursesCompanion extends UpdateCompanion<Course> {
           ..write('weekday: $weekday, ')
           ..write('startMinute: $startMinute, ')
           ..write('endMinute: $endMinute, ')
-          ..write('colorIndex: $colorIndex')
+          ..write('colorIndex: $colorIndex, ')
+          ..write('occurrences: $occurrences, ')
+          ..write('importKey: $importKey, ')
+          ..write('description: $description, ')
+          ..write('kind: $kind, ')
+          ..write('reminderMinutes: $reminderMinutes')
           ..write(')'))
         .toString();
   }
@@ -799,6 +1057,11 @@ typedef $$CoursesTableCreateCompanionBuilder = CoursesCompanion Function({
   required int startMinute,
   required int endMinute,
   Value<int> colorIndex,
+  Value<String?> occurrences,
+  Value<String?> importKey,
+  Value<String?> description,
+  Value<String?> kind,
+  Value<int?> reminderMinutes,
 });
 typedef $$CoursesTableUpdateCompanionBuilder = CoursesCompanion Function({
   Value<int> id,
@@ -808,6 +1071,11 @@ typedef $$CoursesTableUpdateCompanionBuilder = CoursesCompanion Function({
   Value<int> startMinute,
   Value<int> endMinute,
   Value<int> colorIndex,
+  Value<String?> occurrences,
+  Value<String?> importKey,
+  Value<String?> description,
+  Value<String?> kind,
+  Value<int?> reminderMinutes,
 });
 
 class $$CoursesTableFilterComposer
@@ -851,6 +1119,31 @@ class $$CoursesTableFilterComposer
 
   ColumnFilters<int> get colorIndex => $composableBuilder(
     column: $table.colorIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get occurrences => $composableBuilder(
+    column: $table.occurrences,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get importKey => $composableBuilder(
+    column: $table.importKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get reminderMinutes => $composableBuilder(
+    column: $table.reminderMinutes,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -898,6 +1191,31 @@ class $$CoursesTableOrderingComposer
     column: $table.colorIndex,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get occurrences => $composableBuilder(
+    column: $table.occurrences,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get importKey => $composableBuilder(
+    column: $table.importKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get reminderMinutes => $composableBuilder(
+    column: $table.reminderMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CoursesTableAnnotationComposer
@@ -931,6 +1249,27 @@ class $$CoursesTableAnnotationComposer
 
   GeneratedColumn<int> get colorIndex => $composableBuilder(
     column: $table.colorIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get occurrences => $composableBuilder(
+    column: $table.occurrences,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get importKey =>
+      $composableBuilder(column: $table.importKey, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<int> get reminderMinutes => $composableBuilder(
+    column: $table.reminderMinutes,
     builder: (column) => column,
   );
 }
@@ -970,6 +1309,11 @@ class $$CoursesTableTableManager
                 Value<int> startMinute = const Value.absent(),
                 Value<int> endMinute = const Value.absent(),
                 Value<int> colorIndex = const Value.absent(),
+                Value<String?> occurrences = const Value.absent(),
+                Value<String?> importKey = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String?> kind = const Value.absent(),
+                Value<int?> reminderMinutes = const Value.absent(),
               }) => CoursesCompanion(
                 id: id,
                 name: name,
@@ -978,6 +1322,11 @@ class $$CoursesTableTableManager
                 startMinute: startMinute,
                 endMinute: endMinute,
                 colorIndex: colorIndex,
+                occurrences: occurrences,
+                importKey: importKey,
+                description: description,
+                kind: kind,
+                reminderMinutes: reminderMinutes,
               ),
           createCompanionCallback:
               ({
@@ -988,6 +1337,11 @@ class $$CoursesTableTableManager
                 required int startMinute,
                 required int endMinute,
                 Value<int> colorIndex = const Value.absent(),
+                Value<String?> occurrences = const Value.absent(),
+                Value<String?> importKey = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<String?> kind = const Value.absent(),
+                Value<int?> reminderMinutes = const Value.absent(),
               }) => CoursesCompanion.insert(
                 id: id,
                 name: name,
@@ -996,6 +1350,11 @@ class $$CoursesTableTableManager
                 startMinute: startMinute,
                 endMinute: endMinute,
                 colorIndex: colorIndex,
+                occurrences: occurrences,
+                importKey: importKey,
+                description: description,
+                kind: kind,
+                reminderMinutes: reminderMinutes,
               ),
           withReferenceMapper: (p0) => p0
               .map(

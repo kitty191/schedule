@@ -17,9 +17,21 @@ object CourseScheduler {
     )
 
     fun parseCourse(value: JSONObject): CourseSpec {
+        val stored = value.optJSONArray("occurrences")
+        require(stored == null || stored.length() <= 5000)
+        val fixed = stored?.let { entries -> (0 until entries.length()).map {
+            val item = entries.getJSONObject(it)
+            val start = item.getLong("start")
+            val end = item.getLong("end")
+            require(end > start && end - start <= 24 * 60 * 60_000L)
+            Pair(start, end)
+        } }
+        val lead = if (value.has("leadMinutes")) value.getInt("leadMinutes") else null
+        require(lead == null || lead in 0..1440)
         val course = CourseSpec(
             value.getInt("id"), value.getString("name").trim(), value.optString("location"),
             value.getInt("weekday"), value.getInt("startMinute"), value.getInt("endMinute"),
+            fixed, lead, value.optString("kind", "course"),
         )
         require(course.name.isNotEmpty() && course.name.length <= 60)
         require(course.weekday in 1..7 && course.startMinute in 0..1438 &&
@@ -31,7 +43,7 @@ object CourseScheduler {
         val courses = JSONArray(data["courses"] as? List<*> ?: emptyList<Any>())
         for (i in 0 until courses.length()) parseCourse(courses.getJSONObject(i))
         val lead = (data["leadMinutes"] as? Number)?.toInt() ?: 10
-        require(lead in listOf(5, 10, 15, 30))
+        require(lead in listOf(5, 10, 15, 20, 30))
         check(prefs(context).edit()
             .putString("courses", courses.toString())
             .putBoolean("enabled", data["enabled"] == true)

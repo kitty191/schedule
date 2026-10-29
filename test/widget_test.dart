@@ -5,6 +5,12 @@ import 'package:schedule/data/app_controller.dart';
 import 'package:schedule/data/database.dart';
 import 'package:schedule/main.dart';
 import 'package:schedule/live_update_bridge.dart';
+import 'package:schedule/data/calendar_file.dart';
+import 'package:schedule/data/ics_importer.dart';
+
+import 'dart:io';
+
+import 'package:drift/drift.dart' show Value;
 
 class MemoryController extends AppController {
   static List<Course> seed = [];
@@ -29,9 +35,35 @@ class MemoryController extends AppController {
           startMinute: value.startMinute.value,
           endMinute: value.endMinute.value,
           colorIndex: value.colorIndex.value,
+          occurrences: value.occurrences.present
+              ? value.occurrences.value
+              : null,
+          kind: value.kind.present ? value.kind.value : null,
+          description: value.description.present
+              ? value.description.value
+              : null,
+          importKey: value.importKey.present ? value.importKey.value : null,
+          reminderMinutes: value.reminderMinutes.present
+              ? value.reminderMinutes.value
+              : null,
         ),
       );
     state = AsyncData(AppData(courses, data.preferences));
+  }
+
+  @override
+  Future<int> importCalendar(
+    ImportReport report, {
+    bool keepReminders = true,
+  }) async {
+    for (var i = 0; i < report.courses.length; i++) {
+      final entry = report.courses[i].companion(
+        i,
+        keepReminders: keepReminders,
+      );
+      await saveCourse(entry.copyWith(id: Value(100 + i)));
+    }
+    return report.courses.length;
   }
 
   @override
@@ -67,6 +99,12 @@ Future<void> openApp(WidgetTester tester) async {
       overrides: [
         appProvider.overrideWith(MemoryController.new),
         bridgeProvider.overrideWithValue(DeniedBridge()),
+        calendarFilePickerProvider.overrideWithValue(
+          () async => CalendarFile(
+            'example.ics',
+            File('test/fixtures/calendar.ics').readAsStringSync(),
+          ),
+        ),
       ],
       child: const ScheduleApp(),
     ),
@@ -130,9 +168,9 @@ void main() {
     tester,
   ) async {
     await openApp(tester);
-    await tester.tap(find.byKey(const Key('more-menu')));
+    await tester.tap(find.byKey(const Key('tab-2')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('课程提醒'));
+    await tester.tap(find.text('提醒设置'));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(CupertinoSwitch));
     await tester.pumpAndSettle();
@@ -181,4 +219,62 @@ void main() {
     expect(find.text('今天'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+  testWidgets(
+    'Three dock tabs, week navigation and import preview are usable',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await openApp(tester);
+      await tester.tap(find.byKey(const Key('tab-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('import-timetable')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('next-week')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const Key('import-timetable')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('pick-calendar')));
+      await tester.pumpAndSettle();
+      expect(find.text('2 门课程 · 2 组时段 · 4 次上课'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('confirm-import')),
+        250,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView).last,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-import')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('已导入 2 组课程'), findsWidgets);
+      await tester.tap(find.text('好'));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'One-off agenda item is saved and stays out of the weekly course grid',
+    (tester) async {
+      await openApp(tester);
+      await tester.tap(find.byKey(const Key('add-agenda')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('添加日程'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('course-name')), '学习小组讨论');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+      expect(find.text('学习小组讨论'), findsWidgets);
+      await tester.tap(find.byKey(const Key('tab-1')));
+      await tester.pumpAndSettle();
+      expect(find.text('学习小组讨论'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }

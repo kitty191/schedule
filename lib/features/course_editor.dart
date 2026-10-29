@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,8 +10,15 @@ import '../data/timetable.dart';
 import 'components.dart';
 
 class CourseEditor extends ConsumerStatefulWidget {
-  const CourseEditor({super.key, this.course});
+  const CourseEditor({
+    super.key,
+    this.course,
+    this.kind = 'course',
+    this.initialDate,
+  });
   final Course? course;
+  final String kind;
+  final DateTime? initialDate;
   @override
   ConsumerState<CourseEditor> createState() => _CourseEditorState();
 }
@@ -24,11 +33,63 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
   late int _end = widget.course?.endMinute ?? 10 * 60 + 5;
   late int _color = widget.course?.colorIndex ?? 0;
   bool _saving = false;
+  bool get _event =>
+      widget.course == null ? widget.kind == 'event' : isEvent(widget.course!);
+  bool get _imported => widget.course?.importKey != null;
+  late DateTime _date = widget.course?.occurrences == null
+      ? widget.initialDate ?? dateOnly(DateTime.now())
+      : dateOnly(instancesOf(widget.course!).first.start);
+  late final _notes = TextEditingController(
+    text: widget.course?.description ?? '',
+  );
+
+  Future<void> _chooseDate() async {
+    var selected = _date;
+    final done = await showCupertinoModalPopup<bool>(
+      context: context,
+      builder: (context) => Container(
+        color: CupertinoColors.systemBackground,
+        height: 320 + MediaQuery.paddingOf(context).bottom,
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('取消'),
+                  ),
+                  const Text('日程日期'),
+                  CupertinoButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('完成'),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: CupertinoDatePicker(
+                  mode: CupertinoDatePickerMode.date,
+                  initialDateTime: _date,
+                  minimumYear: 2020,
+                  maximumYear: 2100,
+                  onDateTimeChanged: (value) => selected = value,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (done == true && mounted) setState(() => _date = dateOnly(selected));
+  }
 
   @override
   void dispose() {
     _name.dispose();
     _location.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
@@ -90,7 +151,7 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
 
   Future<void> _save() async {
     if (_name.text.trim().isEmpty) {
-      await showMessage(context, '先为课程起一个名字吧。');
+      await showMessage(context, _event ? '先为日程起一个名字吧。' : '先为课程起一个名字吧。');
       return;
     }
     if (_end <= _start) {
@@ -112,6 +173,34 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
               startMinute: Value(_start),
               endMinute: Value(_end),
               colorIndex: Value(_color),
+              kind: Value(_event ? 'event' : 'course'),
+              description: Value(_notes.text.trim()),
+              importKey: Value(widget.course?.importKey),
+              reminderMinutes: Value(widget.course?.reminderMinutes),
+              occurrences: Value(
+                _imported
+                    ? widget.course!.occurrences
+                    : !_event
+                    ? null
+                    : jsonEncode([
+                        CourseInstance(
+                          DateTime(
+                            _date.year,
+                            _date.month,
+                            _date.day,
+                            _start ~/ 60,
+                            _start % 60,
+                          ),
+                          DateTime(
+                            _date.year,
+                            _date.month,
+                            _date.day,
+                            _end ~/ 60,
+                            _end % 60,
+                          ),
+                        ).toMap(),
+                      ]),
+              ),
             ),
           );
       if (mounted) Navigator.pop(context);
@@ -126,8 +215,8 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('删除这门课程？'),
-        content: const Text('每周重复的这门课程和对应提醒都会移除。'),
+        title: Text(_event ? '删除这个日程？' : '删除这门课程？'),
+        content: Text(_event ? '这个日程和对应提醒会移除。' : '这组课程的所有上课日期和对应提醒都会移除。'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context, false),
@@ -156,7 +245,11 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
   @override
   Widget build(BuildContext context) => CupertinoPageScaffold(
     navigationBar: CupertinoNavigationBar(
-      middle: Text(widget.course == null ? '添加课程' : '编辑课程'),
+      middle: Text(
+        widget.course == null
+            ? (_event ? '添加日程' : '添加课程')
+            : (_event ? '编辑日程' : '编辑课程'),
+      ),
       trailing: CupertinoButton(
         padding: EdgeInsets.zero,
         onPressed: _saving ? null : _save,
@@ -174,7 +267,7 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
                 CupertinoTextField(
                   key: const Key('course-name'),
                   controller: _name,
-                  placeholder: '课程名称',
+                  placeholder: _event ? '日程名称' : '课程名称',
                   maxLength: 60,
                   padding: const EdgeInsets.all(14),
                   decoration: null,
@@ -193,61 +286,88 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
             ),
           ),
           const SizedBox(height: 24),
-          const MutedText('每周重复'),
+          if (_imported)
+            WhiteCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('来自课表文件 · ${instancesOf(widget.course!).length} 次上课'),
+                  const SizedBox(height: 8),
+                  MutedText(
+                    '${dateText(instancesOf(widget.course!).first.start)} — ${dateText(instancesOf(widget.course!).last.start)}',
+                  ),
+                  const MutedText(
+                    '按文件中的实际日期上课；可编辑名称、地点、备注和颜色。时间如有变化，请删除这组课程后重新导入。',
+                  ),
+                ],
+              ),
+            ),
+          if (_event)
+            WhiteCard(
+              padding: EdgeInsets.zero,
+              child: CupertinoListTile(
+                title: const Text('日期'),
+                trailing: Text(dateText(_date)),
+                onTap: _chooseDate,
+              ),
+            ),
+          if (!_event && !_imported) const MutedText('每周重复'),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 6,
-            runSpacing: 8,
-            children: List.generate(
-              7,
-              (index) => CupertinoButton(
-                key: Key('weekday-${index + 1}'),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                color: _weekday == index + 1
-                    ? CupertinoColors.activeBlue
-                    : CupertinoColors.white,
-                onPressed: () => setState(() => _weekday = index + 1),
-                child: Text(
-                  weekdays[index],
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: _weekday == index + 1
-                        ? CupertinoColors.white
-                        : CupertinoColors.label,
+          if (!_event && !_imported)
+            Wrap(
+              spacing: 6,
+              runSpacing: 8,
+              children: List.generate(
+                7,
+                (index) => CupertinoButton(
+                  key: Key('weekday-${index + 1}'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  color: _weekday == index + 1
+                      ? CupertinoColors.activeBlue
+                      : CupertinoColors.white,
+                  onPressed: () => setState(() => _weekday = index + 1),
+                  child: Text(
+                    weekdays[index],
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _weekday == index + 1
+                          ? CupertinoColors.white
+                          : CupertinoColors.label,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
           const SizedBox(height: 24),
-          WhiteCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                CupertinoListTile(
-                  title: const Text('上课'),
-                  trailing: Text(clockText(_start)),
-                  onTap: () => _time(true),
-                  additionalInfo: const Icon(
-                    CupertinoIcons.chevron_right,
-                    size: 14,
+          if (!_imported)
+            WhiteCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  CupertinoListTile(
+                    title: Text(_event ? '开始' : '上课'),
+                    trailing: Text(clockText(_start)),
+                    onTap: () => _time(true),
+                    additionalInfo: const Icon(
+                      CupertinoIcons.chevron_right,
+                      size: 14,
+                    ),
                   ),
-                ),
-                CupertinoListTile(
-                  title: const Text('下课'),
-                  trailing: Text(clockText(_end)),
-                  onTap: () => _time(false),
-                  additionalInfo: const Icon(
-                    CupertinoIcons.chevron_right,
-                    size: 14,
+                  CupertinoListTile(
+                    title: Text(_event ? '结束' : '下课'),
+                    trailing: Text(clockText(_end)),
+                    onTap: () => _time(false),
+                    additionalInfo: const Icon(
+                      CupertinoIcons.chevron_right,
+                      size: 14,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 24),
           const MutedText('课程颜色'),
           const SizedBox(height: 12),
@@ -277,13 +397,24 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
             ),
           ),
           const SizedBox(height: 24),
-          const MutedText('课程按所选星期每周重复。学期起始日期用于显示教学周，暂不限定课程的生效周数。'),
+          WhiteCard(
+            child: CupertinoTextField(
+              controller: _notes,
+              maxLines: 4,
+              maxLength: 2000,
+              placeholder: '备注 / 教师 / 节次',
+              padding: const EdgeInsets.all(8),
+              decoration: null,
+            ),
+          ),
+          if (!_event && !_imported)
+            const MutedText('课程按所选星期每周重复；导入课表按文件中的实际日期上课。'),
           if (widget.course != null) ...[
             const SizedBox(height: 32),
             CupertinoButton(
               onPressed: _saving ? null : _delete,
-              child: const Text(
-                '删除课程',
+              child: Text(
+                _event ? '删除日程' : '删除课程',
                 style: TextStyle(color: CupertinoColors.destructiveRed),
               ),
             ),

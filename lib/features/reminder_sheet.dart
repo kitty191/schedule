@@ -130,7 +130,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                     child: Column(
                       children: [
                         CupertinoListTile(
-                          title: const Text('课前提醒'),
+                          title: const Text('课程与日程提醒'),
                           trailing: CupertinoSwitch(
                             value: preferences?.reminders ?? false,
                             onChanged: _busy || preferences == null
@@ -158,7 +158,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                           ),
                         ),
                         CupertinoListTile(
-                          title: const Text('提前时间'),
+                          title: const Text('默认提前时间'),
                           trailing: CupertinoButton(
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                             onPressed: _busy || preferences == null
@@ -219,7 +219,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                   const Padding(
                     padding: EdgeInsets.fromLTRB(8, 12, 8, 24),
                     child: MutedText(
-                      '课前显示下一节课，上课后切换为课堂状态，下课后自动结束。若课程重叠，优先显示最早开始且尚未结束的一门。',
+                      '课前显示下一节课，上课后切换状态，下课后自动结束。日程显示开始/结束状态。导入时沿用文件提醒的课程优先使用文件时间。重叠时优先显示最早开始且尚未结束的一项。',
                     ),
                   ),
                   if (_status != null)
@@ -270,7 +270,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                   const Padding(
                     padding: EdgeInsets.fromLTRB(8, 0, 8, 20),
                     child: MutedText(
-                      'Android 可在系统支持时显示顶部实时提醒；省电策略可能延后后台更新。iOS 此版使用普通课程通知。强制停止 App 后请重新打开，以恢复调度。',
+                      'Android 可在系统支持时显示顶部实时提醒；省电策略可能延后后台更新。iOS 使用普通通知，安排最近 60 次提醒，请定期打开应用续排。强制停止 App 后请重新打开，以恢复调度。',
                     ),
                   ),
                   WhiteCard(
@@ -319,7 +319,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                                   await ref.read(bridgeProvider).stop();
                                   if (mounted) {
                                     setState(
-                                      () => _message = '当前提醒已结束。下一节课仍会按时提醒。',
+                                      () => _message = '当前提醒已结束。后续安排仍会继续提醒。',
                                     );
                                   }
                                 }),

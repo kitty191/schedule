@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:drift/drift.dart' show Value;
 
 import '../live_update_bridge.dart';
 import 'database.dart';
 import 'timetable.dart';
+import 'ics_importer.dart';
 
 final databaseProvider = Provider<ScheduleDatabase>((ref) {
   final database = ScheduleDatabase();
@@ -58,6 +60,33 @@ class AppController extends AsyncNotifier<AppData> {
   Future<void> updatePreferences(Preference value) async {
     await ref.read(databaseProvider).savePreferences(value);
     state = AsyncData(await _loadAndSync());
+  }
+
+  Future<int> importCalendar(
+    ImportReport report, {
+    bool keepReminders = true,
+  }) async {
+    final db = ref.read(databaseProvider);
+    final inserted = await db.importCourses(
+      report.courses
+          .map(
+            (c) => c.companion(
+              c.name.codeUnits.fold(0, (sum, v) => sum + v) % 5,
+              keepReminders: keepReminders,
+            ),
+          )
+          .toList(),
+    );
+    final prefs = await db.loadPreferences();
+    if (prefs.semesterStart == null && report.firstDate != null) {
+      await db.savePreferences(
+        prefs.copyWith(
+          semesterStart: Value(dateOnly(report.firstDate!.toLocal())),
+        ),
+      );
+    }
+    state = AsyncData(await _loadAndSync());
+    return inserted;
   }
 
   Future<void> retrySync() async => state = AsyncData(await _loadAndSync());

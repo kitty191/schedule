@@ -66,4 +66,32 @@ class CoursePlannerTest {
         assertEquals(8, wake.get(Calendar.HOUR_OF_DAY))
         assertEquals(20, wake.get(Calendar.MINUTE))
     }
+
+    @Test fun importedOccurrencesNeverRepeatOutsideFileDates() {
+        val finite = course.copy(fixedOccurrences = listOf(Pair(time(29, 8, 30), time(29, 10, 0))))
+        assertNotNull(plan(time(29, 8, 25), listOf(finite)).active)
+        val result = plan(time(29, 10, 0), listOf(finite))
+        assertNull(result.active)
+        assertNull(result.nextWake)
+    }
+    @Test fun fileReminderOverridesGlobalLead() {
+        val imported = course.copy(leadMinutes = 20,
+            fixedOccurrences = listOf(Pair(time(29, 8, 30), time(29, 10, 0))))
+        assertNotNull(plan(time(29, 8, 10), listOf(imported)).active)
+        assertNull(plan(time(29, 8, 9), listOf(imported)).active)
+    }
+    @Test fun finiteImportMayBeMonthsAheadAndDoesNotUseWeekdayFallback() {
+        val future = course.copy(fixedOccurrences = listOf(Pair(time(29, 8, 30), time(29, 10, 0))))
+        val result = plan(time(1, 8, 25), listOf(future))
+        assertNull(result.active)
+        assertEquals(time(29, 8, 20), result.nextWake)
+        assertNull(plan(time(29, 9, 0),listOf(course.copy(fixedOccurrences = emptyList()))).active)
+    }
+    @Test fun oneOffEventCanBeDismissedWithoutWeeklyRepost() {
+        val event = course.copy(kind = "event", fixedOccurrences = listOf(Pair(time(29,8,30),time(29,10,0))))
+        val key = plan(time(29,8,25),listOf(event)).active!!.key
+        val stopped = plan(time(29,8,26),listOf(event),key)
+        assertNull(stopped.active)
+        assertNull(stopped.nextWake)
+    }
 }

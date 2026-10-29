@@ -34,36 +34,57 @@ import UserNotifications
           result(FlutterError(code: "invalid_data", message: "课程数据无效。", details: nil)); return
         }
         let enabled = data["enabled"] as? Bool ?? false
-        if enabled && courses.count > 60 {
-          result(FlutterError(code: "notification_limit", message: "iOS 系统提醒最多支持 60 门重复课程，请减少课程后重试。", details: nil)); return
-        }
-        let lead = data["leadMinutes"] as? Int ?? 10
-        // Repeat calendar triggers survive process exit and device restart.
+        let defaultLead = data["leadMinutes"] as? Int ?? 10
         center.getPendingNotificationRequests { pending in
           center.removePendingNotificationRequests(withIdentifiers: pending.filter { $0.identifier.hasPrefix("course-") }.map { $0.identifier })
           if !enabled { self.replyStatus(result); return }
-          let group = DispatchGroup()
-          let errors = NSLock()
-          var schedulingError: Error?
+          var requests: [(Date, UNNotificationRequest)] = []
+          let now = Date()
           for course in courses {
             guard let id = course["id"] as? Int, let name = course["name"] as? String,
                   let weekday = course["weekday"] as? Int, let start = course["startMinute"] as? Int else { continue }
-            let adjusted = start - lead
-            let dayShift = adjusted < 0 ? -1 : 0
-            let minute = (adjusted + 1440) % 1440
-            let isoDay = (weekday - 1 + dayShift + 7) % 7 + 1
-            var date = DateComponents()
-            date.weekday = isoDay % 7 + 1 // Apple Sunday=1, ISO Monday=1.
-            date.hour = minute / 60
-            date.minute = minute % 60
+            let lead = course["leadMinutes"] as? Int ?? defaultLead
             let content = UNMutableNotificationContent()
             content.title = name
             let location = course["location"] as? String ?? ""
-            content.body = "\(lead)分钟后上课 · \(location.isEmpty ? "未设置教室" : location)"
+            let verb = (course["kind"] as? String) == "event" ? "开始" : "上课"
+            content.body = "\(lead)分钟后\(verb) · \(location.isEmpty ? "未设置地点" : location)"
             content.sound = .default
+            if let occurrences = course["occurrences"] as? [[String: Any]] {
+              for occurrence in occurrences {
+                guard let millis = occurrence["start"] as? NSNumber else { continue }
+                let fire = Date(timeIntervalSince1970: millis.doubleValue / 1000 - Double(lead * 60))
+                if fire <= now { continue }
+                var calendar = Calendar(identifier: .gregorian)
+                calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+                var date = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fire)
+                date.timeZone = calendar.timeZone
+                let request = UNNotificationRequest(identifier: "course-\(id)-\(millis.int64Value)", content: content,
+                  trigger: UNCalendarNotificationTrigger(dateMatching: date, repeats: false))
+                requests.append((fire, request))
+              }
+            } else {
+              let adjusted = start - lead
+              let dayShift = adjusted < 0 ? -1 : 0
+              let minute = (adjusted + 1440) % 1440
+              let isoDay = (weekday - 1 + dayShift + 7) % 7 + 1
+              var date = DateComponents()
+              date.weekday = isoDay % 7 + 1
+              date.hour = minute / 60
+              date.minute = minute % 60
+              let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: true)
+              requests.append((trigger.nextTriggerDate() ?? Date.distantFuture,
+                UNNotificationRequest(identifier: "course-\(id)", content: content, trigger: trigger)))
+            }
+          }
+          // iOS permits at most 64 pending local notifications; keep room for previews.
+          requests.sort { $0.0 < $1.0 }
+          let group = DispatchGroup()
+          let errors = NSLock()
+          var schedulingError: Error?
+          for (_, request) in requests.prefix(60) {
             group.enter()
-            center.add(UNNotificationRequest(identifier: "course-\(id)", content: content,
-              trigger: UNCalendarNotificationTrigger(dateMatching: date, repeats: true))) { error in
+            center.add(request) { error in
               if let error = error { errors.lock(); schedulingError = error; errors.unlock() }
               group.leave()
             }

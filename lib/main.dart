@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/today_page.dart';
+import 'features/app_shell.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,9 +24,13 @@ class ScheduleApp extends StatelessWidget {
       primaryColor: Color(0xFF007AFF),
       scaffoldBackgroundColor: Color(0xFFF5F6FA),
       textTheme: CupertinoTextThemeData(
-        textStyle: TextStyle(fontSize: 16, color: Color(0xFF1C1C1E)),
+        textStyle: TextStyle(
+          fontFamily: 'CupertinoSystemText',
+          fontSize: 16,
+          color: Color(0xFF1C1C1E),
+        ),
       ),
     ),
-    home: TodayPage(),
+    home: AppShell(),
   );
 }

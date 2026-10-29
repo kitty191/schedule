@@ -41,12 +41,17 @@ object LiveUpdateNotification {
         val now = System.currentTimeMillis()
         val inClass = occurrence != null && now >= occurrence.start
         val minutes = occurrence?.let { ceil(((if (inClass) it.end else it.start) - now) / 60_000.0).toInt().coerceAtLeast(1) }
-        val critical = if (occurrence == null) "课程预览" else if (inClass) "上课中" else "${minutes}分上课"
+        val event = course.kind == "event"
+        val critical = if (occurrence == null) "提醒预览" else if (inClass) {
+            if (event) "进行中" else "上课中"
+        } else "${minutes}分${if (event) "开始" else "上课"}"
         fun clock(minute: Int) = "%02d:%02d".format(minute / 60, minute % 60)
-        val time = "${clock(course.startMinute)} — ${clock(course.endMinute)}"
+        val clockFormat = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+        val time = if (occurrence == null) "${clock(course.startMinute)} — ${clock(course.endMinute)}" else
+            "${clockFormat.format(java.util.Date(occurrence.start))} — ${clockFormat.format(java.util.Date(occurrence.end))}"
         val location = course.location.ifBlank { "未设置教室" }
         val description = if (occurrence == null) "课程预览 · $time" else
-            if (inClass) "正在上课 · ${minutes}分钟后下课" else "${minutes}分钟后上课 · $time"
+            if (inClass) "${if (event) "进行中" else "正在上课"} · ${minutes}分钟后${if (event) "结束" else "下课"}" else "${minutes}分钟后${if (event) "开始" else "上课"} · $time"
         @Suppress("DEPRECATION")
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, CHANNEL_ID) else Notification.Builder(context)
         builder.setSmallIcon(R.drawable.ic_live_test)

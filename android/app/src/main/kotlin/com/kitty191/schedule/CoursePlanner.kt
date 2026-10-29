@@ -7,6 +7,8 @@ import java.util.TimeZone
 data class CourseSpec(
     val id: Int, val name: String, val location: String,
     val weekday: Int, val startMinute: Int, val endMinute: Int,
+    val fixedOccurrences: List<Pair<Long, Long>>? = null,
+    val leadMinutes: Int? = null, val kind: String = "course",
 )
 
 data class CourseOccurrence(val course: CourseSpec, val start: Long, val end: Long) {
@@ -21,13 +23,19 @@ object CoursePlanner {
         dismissed: String? = null, zone: TimeZone = TimeZone.getDefault(),
     ): CoursePlan {
         val occurrences = mutableListOf<CourseOccurrence>()
+        for (course in courses.filter { it.fixedOccurrences != null }) {
+            for ((start, end) in course.fixedOccurrences!!) {
+                val occurrence = CourseOccurrence(course, start, end)
+                if (end > now && occurrence.key != dismissed) occurrences.add(occurrence)
+            }
+        }
         for (offset in -1..8) {
             val day = Calendar.getInstance(zone).apply {
                 timeInMillis = now
                 add(Calendar.DAY_OF_MONTH, offset)
             }
             val weekday = (day.get(Calendar.DAY_OF_WEEK) + 5) % 7 + 1
-            for (course in courses.filter { it.weekday == weekday }) {
+            for (course in courses.filter { it.fixedOccurrences == null && it.weekday == weekday }) {
                 fun at(minute: Int): Long = (day.clone() as Calendar).apply {
                     set(Calendar.HOUR_OF_DAY, minute / 60)
                     set(Calendar.MINUTE, minute % 60)
@@ -39,9 +47,9 @@ object CoursePlanner {
             }
         }
         occurrences.sortWith(compareBy<CourseOccurrence> { it.start }.thenBy { it.course.id })
-        val lead = leadMinutes * 60_000L
-        val active = occurrences.firstOrNull { now >= it.start - lead && now < it.end }
-        val boundaries = occurrences.flatMap { listOf(it.start - lead, it.start, it.end) }
+        fun lead(occurrence: CourseOccurrence) = (occurrence.course.leadMinutes ?: leadMinutes) * 60_000L
+        val active = occurrences.firstOrNull { now >= it.start - lead(it) && now < it.end }
+        val boundaries = occurrences.flatMap { listOf(it.start - lead(it), it.start, it.end) }
             .filter { it > now }
         val wake = (boundaries + listOfNotNull(active?.let { now + 60_000L })).minOrNull()
         return CoursePlan(active, wake)
