@@ -4,15 +4,30 @@ import 'package:schedule/features/reminder_sheet.dart';
 
 import 'widget_test.dart' as fixtures;
 
-Future<void> openReminders(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(393, 852);
+Future<void> openReminders(
+  WidgetTester tester, {
+  Size size = const Size(393, 852),
+}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(() {
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
+    tester.view.resetViewInsets();
   });
   await fixtures.openApp(tester);
   await tester.tap(find.byKey(const Key('tab-2')));
+  await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(
+    find.text('提醒设置'),
+    120,
+    scrollable: find
+        .descendant(
+          of: find.byType(ListView).last,
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
   await tester.pumpAndSettle();
   await tester.tap(find.text('提醒设置'));
   await tester.pumpAndSettle();
@@ -80,4 +95,21 @@ void main() {
     expect(find.byType(ReminderSheet), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
+  testWidgets(
+    'Landscape reminder keyboard does not resize the main tabs behind it',
+    (tester) async {
+      await openReminders(tester, size: const Size(720, 320));
+      await tester.tap(find.byKey(const Key('pre-reminder-time')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('自定义分钟'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('自定义分钟').hitTestable());
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 140);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('custom-reminder-minutes')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }
