@@ -5,7 +5,7 @@ import 'package:flutter/cupertino.dart';
 Future<T?> showEditableSheet<T>(
   BuildContext context, {
   required ScrollableWidgetBuilder builder,
-  double? topGap,
+  double topGap = 0.12,
 }) => Navigator.of(context, rootNavigator: true).push<T>(
   _EditableSheetRoute<T>(
     scrollableBuilder: builder,

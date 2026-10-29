@@ -1,5 +1,9 @@
 # 今天课程
 
+> 当前为 `codex/experiment-course-sheets` 交互试验分支：点击已有课程从底部弹出编辑面板，提醒设置支持下拉收起。
+> [下载独立试验包](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-sheets-preview-1/downloads/today-courses-sheets-preview-1.apk) · [试验、构建与切回说明](docs/COURSE_SHEET_EXPERIMENT.md)
+> 试验包与 1.0.0 并排安装，数据互相独立；原版保持不变。
+
 轻量的课程表 App，使用 Flutter / Dart、Riverpod、Drift / SQLite，以及 Kotlin / Swift 原生通知。
 
 ## 三个主页面

@@ -1,9 +1,7 @@
-# 今天课程 1.0.0
+# 课程弹层试验
 
-[下载 ARM64 安装包](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.0/downloads/today-courses-v1.0.0-arm64.apk) · [SHA256](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.0/downloads/today-courses-v1.0.0-arm64.apk.sha256)
+[下载独立试验 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-sheets-preview-1/downloads/today-courses-sheets-preview-1.apk)
 
-版本 1.0.0（10），可覆盖安装 0.7.x，保留课程和设置。
+应用名：今天课程·弹层试验。可与 1.0.0 并排安装，试验数据与原版互相独立。首次打开可自行添加课程或导入同一份 .ics 文件。
 
-源码分支只保留下载入口。APK、校验文件与渲染图放在独立的 `builds/android-v1.0.0` 下载分支；旧版本仍可从原有下载分支获取。
-
-[1.0.0 审查记录](../docs/RELEASE_AUDIT_1.0.0.md)
+[说明及原版入口](../docs/COURSE_SHEET_EXPERIMENT.md)

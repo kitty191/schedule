@@ -639,19 +639,23 @@ class WeekGrid extends StatelessWidget {
                                   : '${p.overlapping!.length}门课程重叠，点击查看',
                               button: true,
                               child: GestureDetector(
-                                onTap: () => Navigator.push(
-                                  context,
-                                  CupertinoPageRoute<void>(
-                                    builder: (_) => p.overlapping == null
-                                        ? CourseEditor(course: p.course)
-                                        : _OverlappingCoursesPage(
-                                            day: days[day],
-                                            ids: p.overlapping!
-                                                .map((c) => c.id)
-                                                .toSet(),
-                                          ),
-                                  ),
-                                ),
+                                onTap: () {
+                                  if (p.overlapping == null) {
+                                    showCourseEditorSheet(context, p.course);
+                                  } else {
+                                    Navigator.push(
+                                      context,
+                                      CupertinoPageRoute<void>(
+                                        builder: (_) => _OverlappingCoursesPage(
+                                          day: days[day],
+                                          ids: p.overlapping!
+                                              .map((c) => c.id)
+                                              .toSet(),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
                                 child: Container(
                                   clipBehavior: Clip.antiAlias,
                                   padding: const EdgeInsets.symmetric(
@@ -810,12 +814,7 @@ class _OverlappingCoursesPage extends ConsumerWidget {
                       CourseRow(
                         course: course,
                         now: day,
-                        onTap: () => Navigator.push(
-                          context,
-                          CupertinoPageRoute<void>(
-                            builder: (_) => CourseEditor(course: course),
-                          ),
-                        ),
+                        onTap: () => showCourseEditorSheet(context, course),
                       ),
                   ],
                 ),
