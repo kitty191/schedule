@@ -73,7 +73,14 @@ object CourseScheduler {
         val isPreview = preferences.getLong("previewUntil", 0) > System.currentTimeMillis()
         val occurrence = currentPlan(context).active
         val edit = preferences.edit().remove("preview").remove("previewUntil").remove("previewEndAt")
-        if (!isPreview) edit.putString("dismissed", occurrence?.key)
+        if (!isPreview && occurrence != null) {
+            val oldest = System.currentTimeMillis() - 24 * 60 * 60_000L
+            val dismissed = preferences.getStringSet("dismissedKeys", emptySet()).orEmpty()
+                .filter { (it.substringAfter(':').toLongOrNull() ?: 0) > oldest }.toMutableSet()
+            preferences.getString("dismissed", null)?.let { dismissed.add(it) }
+            dismissed.add(occurrence.key)
+            edit.putStringSet("dismissedKeys", dismissed).remove("dismissed")
+        }
         check(edit.commit())
         LiveUpdateNotification.cancel(context)
         refresh(context)
@@ -86,7 +93,8 @@ object CourseScheduler {
         val courses = (0 until stored.length()).map { parseCourse(stored.getJSONObject(it)) }
         return CoursePlanner.plan(courses, System.currentTimeMillis(),
             preferences.getInt("lead", 10), preferences.getString("dismissed", null),
-            endingLeadMinutes = preferences.getInt("endingLead", 10))
+            endingLeadMinutes = preferences.getInt("endingLead", 10),
+            dismissedKeys = preferences.getStringSet("dismissedKeys", emptySet()).orEmpty())
     }
 
     fun refresh(context: Context) {

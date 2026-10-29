@@ -129,7 +129,7 @@ class ProfilePage extends ConsumerWidget {
                 '关于今天课程',
                 () => showMessage(
                   context,
-                  '今天课程 v0.7.2\n\n日程、整周课表和本地 .ics 导入。无需登录。\n\nAndroid 支持系统实时提醒；iOS 使用普通通知，自动安排最近 60 次提醒，需要定期打开应用续排。',
+                  '今天课程 v1.0.0\n\n日程、整周课表和本地 .ics 导入。无需登录。\n\nAndroid 支持系统实时提醒；iOS 使用普通通知，自动安排最近 60 次提醒，需要定期打开应用续排。',
                 ),
               ),
             ),
@@ -177,7 +177,13 @@ Future<void> showSemesterPicker(BuildContext context, WidgetRef ref) async {
                   onPressed: () => Navigator.pop(context),
                   child: const Text('取消'),
                 ),
-                const Text('第一周的任意一天'),
+                const Expanded(
+                  child: Text(
+                    '第一周的任意一天',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                  ),
+                ),
                 CupertinoButton(
                   onPressed: () => Navigator.pop(context, true),
                   child: const Text('完成'),
@@ -188,8 +194,8 @@ Future<void> showSemesterPicker(BuildContext context, WidgetRef ref) async {
               child: CupertinoDatePicker(
                 mode: CupertinoDatePickerMode.date,
                 initialDateTime: selected,
-                minimumYear: 2020,
-                maximumYear: 2100,
+                minimumYear: selected.year < 2020 ? selected.year : 2020,
+                maximumYear: selected.year > 2100 ? selected.year : 2100,
                 onDateTimeChanged: (value) => selected = value,
               ),
             ),

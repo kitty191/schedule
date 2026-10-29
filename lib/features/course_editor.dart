@@ -18,11 +18,12 @@ class CourseEditor extends ConsumerStatefulWidget {
     this.initialDate,
     this.initialWeekday,
     this.initialPeriod,
+    this.initialStartMinute,
   });
   final Course? course;
   final String kind;
   final DateTime? initialDate;
-  final int? initialWeekday, initialPeriod;
+  final int? initialWeekday, initialPeriod, initialStartMinute;
   @override
   ConsumerState<CourseEditor> createState() => _CourseEditorState();
 }
@@ -34,7 +35,8 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
   );
   late int _weekday =
       widget.course?.weekday ?? widget.initialWeekday ?? DateTime.now().weekday;
-  late int _start = widget.course?.startMinute ?? 8 * 60 + 30;
+  late int _start =
+      widget.course?.startMinute ?? widget.initialStartMinute ?? 8 * 60 + 30;
   late int _end = widget.course?.endMinute ?? 10 * 60 + 5;
   late int _color = widget.course?.colorIndex ?? 0;
   bool _saving = false;
@@ -54,6 +56,7 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
   late bool _byPeriod =
       !_event &&
       !_imported &&
+      widget.initialStartMinute == null &&
       (widget.course == null || widget.course?.startPeriod != null);
   late int _startPeriod =
       widget.course?.startPeriod ??
@@ -68,6 +71,10 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
   @override
   void initState() {
     super.initState();
+    if (widget.course == null && widget.initialStartMinute != null) {
+      _start = widget.initialStartMinute!.clamp(0, 1438);
+      _end = (_start + _timetable.lessonMinutes).clamp(_start + 1, 1439);
+    }
     if (_byPeriod) _assignPeriods(_startPeriod, _endPeriod);
   }
 
@@ -115,7 +122,13 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
                     onPressed: () => Navigator.pop(context),
                     child: const Text('取消'),
                   ),
-                  const Text('日程日期'),
+                  const Expanded(
+                    child: Text(
+                      '日程日期',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                    ),
+                  ),
                   CupertinoButton(
                     onPressed: () => Navigator.pop(context, true),
                     child: const Text('完成'),
@@ -126,8 +139,8 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
                 child: CupertinoDatePicker(
                   mode: CupertinoDatePickerMode.date,
                   initialDateTime: _date,
-                  minimumYear: 2020,
-                  maximumYear: 2100,
+                  minimumYear: _date.year < 2020 ? _date.year : 2020,
+                  maximumYear: _date.year > 2100 ? _date.year : 2100,
                   onDateTimeChanged: (value) => selected = value,
                 ),
               ),
@@ -165,7 +178,13 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
                     onPressed: () => Navigator.pop(context),
                     child: const Text('取消'),
                   ),
-                  Text(start ? '上课时间' : '下课时间'),
+                  Expanded(
+                    child: Text(
+                      start ? '上课时间' : '下课时间',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                    ),
+                  ),
                   CupertinoButton(
                     onPressed: () {
                       setState(() {
@@ -213,6 +232,7 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
       await showMessage(context, '下课时间需要晚于上课时间。跨午夜的课程请拆成两门添加。');
       return;
     }
+    FocusScope.of(context).unfocus();
     setState(() => _saving = true);
     try {
       await ref
@@ -476,23 +496,28 @@ class _CourseEditorState extends ConsumerState<CourseEditor> {
             spacing: 12,
             children: List.generate(
               courseColors.length,
-              (index) => CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: () => setState(() => _color = index),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: courseColors[index],
-                    shape: BoxShape.circle,
+              (index) => Semantics(
+                label: const ['蓝色', '橙色', '紫色', '绿色', '粉色'][index],
+                selected: _color == index,
+                button: true,
+                child: CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () => setState(() => _color = index),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: courseColors[index],
+                      shape: BoxShape.circle,
+                    ),
+                    child: _color == index
+                        ? const Icon(
+                            CupertinoIcons.check_mark,
+                            color: CupertinoColors.white,
+                            size: 20,
+                          )
+                        : null,
                   ),
-                  child: _color == index
-                      ? const Icon(
-                          CupertinoIcons.check_mark,
-                          color: CupertinoColors.white,
-                          size: 20,
-                        )
-                      : null,
                 ),
               ),
             ),

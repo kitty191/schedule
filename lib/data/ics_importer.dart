@@ -154,16 +154,58 @@ class IcsImporter {
           throw const FormatException('包含单次修改规则，暂不支持此组课程');
         }
         final parsed = _event(e);
+        final groups = _splitSameDay(parsed);
+        if (courses.length + groups.length > 500) {
+          throw const FormatException('导入时段超过 500 组，请拆分后导入。');
+        }
         occurrences += parsed.instances.length;
         if (occurrences > maxOccurrences) {
           throw const FormatException('文件上课次数超过 5000，请拆分后导入。');
         }
-        courses.add(parsed);
+        courses.addAll(groups);
       } on FormatException catch (error) {
         warnings.add('第${index + 1}组：${error.message}');
       }
     }
     return ImportReport(courses, warnings, events.length);
+  }
+
+  // One row represents one meeting per date. RDATE may add a second meeting
+  // that day: split by clock time so both meetings appear and remain editable.
+  List<ImportedCourse> _splitSameDay(ImportedCourse course) {
+    final dates = course.instances
+        .map((i) => dayKey(i.start.toLocal()))
+        .toSet();
+    if (dates.length == course.instances.length) return [course];
+    final groups = <String, List<CourseInstance>>{};
+    for (final instance in course.instances) {
+      final start = instance.start.toLocal(), end = instance.end.toLocal();
+      final key =
+          '${start.hour}:${start.minute}:${start.second}-${end.hour}:${end.minute}:${end.second}';
+      (groups[key] ??= []).add(instance);
+    }
+    return groups.values
+        .map(
+          (instances) => ImportedCourse(
+            name: course.name,
+            location: course.location,
+            description: course.description,
+            reminderMinutes: course.reminderMinutes,
+            instances: instances,
+            key: sha256
+                .convert(
+                  utf8.encode(
+                    jsonEncode([
+                      course.name,
+                      course.location,
+                      instances.map((i) => i.toMap()).toList(),
+                    ]),
+                  ),
+                )
+                .toString(),
+          ),
+        )
+        .toList();
   }
 
   _Property _property(String line) {
@@ -356,6 +398,10 @@ class IcsImporter {
       final finish = time.add(duration);
       if (!sameDay(time.toLocal(), finish.toLocal())) {
         throw const FormatException('跨午夜课程暂不支持，请拆分后导入');
+      }
+      final a = time.toLocal(), b = finish.toLocal();
+      if (a.hour * 60 + a.minute >= b.hour * 60 + b.minute) {
+        throw const FormatException('起止时间在同一分钟内，无法按分钟显示，请调整后导入');
       }
       return CourseInstance(time.toUtc(), finish.toUtc());
     }).toList();

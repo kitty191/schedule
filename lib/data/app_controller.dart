@@ -26,8 +26,18 @@ class AppData {
 }
 
 class AppController extends AsyncNotifier<AppData> {
+  Future<void> _pending = Future.value();
+
+  // A resume/retry may arrive while a save is still syncing. Keep database
+  // snapshots and native configurations in order so stale data cannot win.
+  Future<T> _serial<T>(Future<T> Function() action) {
+    final result = _pending.then((_) => action());
+    _pending = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return result;
+  }
+
   @override
-  Future<AppData> build() => _loadAndSync();
+  Future<AppData> build() => _serial(_loadAndSync);
 
   Future<AppData> _loadAndSync({bool syncNotifications = true}) async {
     final database = ref.read(databaseProvider);
@@ -63,22 +73,22 @@ class AppController extends AsyncNotifier<AppData> {
     return AppData(courses, preferences, syncError: error);
   }
 
-  Future<void> saveCourse(CoursesCompanion course) async {
+  Future<void> saveCourse(CoursesCompanion course) => _serial(() async {
     await ref.read(databaseProvider).saveCourse(course);
     state = AsyncData(await _loadAndSync());
-  }
+  });
 
-  Future<void> deleteCourse(int id) async {
+  Future<void> deleteCourse(int id) => _serial(() async {
     await ref.read(databaseProvider).removeCourse(id);
     state = AsyncData(await _loadAndSync());
-  }
+  });
 
-  Future<void> updatePreferences(Preference value) async {
+  Future<void> updatePreferences(Preference value) => _serial(() async {
     await ref.read(databaseProvider).savePreferences(value);
     state = AsyncData(await _loadAndSync());
-  }
+  });
 
-  Future<void> updateTimetable(TimetableSettings settings) async {
+  Future<void> updateTimetable(TimetableSettings settings) => _serial(() async {
     final database = ref.read(databaseProvider);
     final previous = TimetableSettings.decode(
       (await database.loadPreferences()).timetableConfig,
@@ -92,12 +102,12 @@ class AppController extends AsyncNotifier<AppData> {
         );
     await database.saveTimetableSettings(settings);
     state = AsyncData(await _loadAndSync(syncNotifications: timesChanged));
-  }
+  });
 
   Future<int> importCalendar(
     ImportReport report, {
     bool keepReminders = true,
-  }) async {
+  }) => _serial(() async {
     final db = ref.read(databaseProvider);
     final inserted = await db.importCourses(
       report.courses
@@ -119,7 +129,9 @@ class AppController extends AsyncNotifier<AppData> {
     }
     state = AsyncData(await _loadAndSync());
     return inserted;
-  }
+  });
 
-  Future<void> retrySync() async => state = AsyncData(await _loadAndSync());
+  Future<void> retrySync() => _serial(() async {
+    state = AsyncData(await _loadAndSync());
+  });
 }

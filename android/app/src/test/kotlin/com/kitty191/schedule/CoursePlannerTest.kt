@@ -192,4 +192,28 @@ class CoursePlannerTest {
             }
         }
     }
+    @Test fun dismissingSeveralOverlapsDoesNotBringTheFirstOneBack() {
+        val other = course.copy(id = 2, startMinute = 9 * 60, endMinute = 11 * 60)
+        val now = time(29,9,30)
+        val courses = listOf(course,other)
+        val first = CoursePlanner.plan(courses,now,10,zone=zone).active!!
+        val keys = setOf(first.key)
+        val second = CoursePlanner.plan(courses,now,10,zone=zone,dismissedKeys=keys).active!!
+        assertEquals(2,second.course.id)
+        val both = keys + second.key
+        val stopped = CoursePlanner.plan(courses,now,10,zone=zone,dismissedKeys=both)
+        assertNull(stopped.active)
+        assertTrue(stopped.nextWake!! > second.end)
+    }
+    @Test fun oldAndNewDismissalsAreBothHonoredAndFiniteCoursesStayStopped() {
+        val first = course.copy(fixedOccurrences=listOf(Pair(time(29,8,30),time(29,10,0))))
+        val second = first.copy(id=2)
+        val now = time(29,9,0)
+        val old = CourseOccurrence(first,time(29,8,30),time(29,10,0)).key
+        val recent = CourseOccurrence(second,time(29,8,30),time(29,10,0)).key
+        val plan = CoursePlanner.plan(listOf(first,second),now,10,dismissed=old,zone=zone,dismissedKeys=setOf(recent))
+        assertNull(plan.active)
+        assertNull(plan.nextWake)
+    }
+
 }

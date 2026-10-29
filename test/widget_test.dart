@@ -140,17 +140,22 @@ class EndingPreviewBridge extends LiveUpdateBridge {
   }
 }
 
-Future<void> openApp(WidgetTester tester, {LiveUpdateBridge? bridge}) async {
+Future<void> openApp(
+  WidgetTester tester, {
+  LiveUpdateBridge? bridge,
+  Future<CalendarFile?> Function()? pickCalendar,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         appProvider.overrideWith(MemoryController.new),
         bridgeProvider.overrideWithValue(bridge ?? DeniedBridge()),
         calendarFilePickerProvider.overrideWithValue(
-          () async => CalendarFile(
-            'example.ics',
-            File('test/fixtures/calendar.ics').readAsStringSync(),
-          ),
+          pickCalendar ??
+              () async => CalendarFile(
+                'example.ics',
+                File('test/fixtures/calendar.ics').readAsStringSync(),
+              ),
         ),
       ],
       child: const ScheduleApp(),
