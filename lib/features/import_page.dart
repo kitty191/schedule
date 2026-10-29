@@ -22,7 +22,6 @@ class _ImportPageState extends ConsumerState<ImportPage> {
     setState(() {
       _busy = true;
       _error = null;
-      _result = null;
     });
     try {
       final file = await ref.read(calendarFilePickerProvider)();
@@ -31,16 +30,26 @@ class _ImportPageState extends ConsumerState<ImportPage> {
       setState(() {
         _report = report;
         _filename = file.name;
+        _result = null;
       });
     } on FormatException catch (e) {
       if (mounted) {
         setState(() {
           _error = e.message;
           _report = null;
+          _filename = null;
+          _result = null;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _error = '暂时无法读取文件，请先将它下载到手机后重试。');
+      if (mounted) {
+        setState(() {
+          _error = '暂时无法读取文件，请先将它下载到手机后重试。';
+          _report = null;
+          _filename = null;
+          _result = null;
+        });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -31,13 +31,14 @@ object CoursePlanner {
         courses: List<CourseSpec>, now: Long, leadMinutes: Int,
         dismissed: String? = null, zone: TimeZone = TimeZone.getDefault(),
         endingLeadMinutes: Int = 10,
+        dismissedKeys: Set<String> = emptySet(),
     ): CoursePlan {
         require(leadMinutes in 1..1440 && endingLeadMinutes in 1..1440)
         val occurrences = mutableListOf<CourseOccurrence>()
         for (course in courses.filter { it.fixedOccurrences != null }) {
             for ((start, end) in course.fixedOccurrences!!) {
                 val occurrence = CourseOccurrence(course, start, end, endingLeadMinutes)
-                if (end > now && occurrence.key != dismissed) occurrences.add(occurrence)
+                if (end > now && occurrence.key != dismissed && occurrence.key !in dismissedKeys) occurrences.add(occurrence)
             }
         }
         for (offset in -1..8) {
@@ -54,7 +55,7 @@ object CoursePlanner {
                     set(Calendar.MILLISECOND, 0)
                 }.timeInMillis
                 val occurrence = CourseOccurrence(course, at(course.startMinute), at(course.endMinute), endingLeadMinutes)
-                if (occurrence.end > now && occurrence.key != dismissed) occurrences.add(occurrence)
+                if (occurrence.end > now && occurrence.key != dismissed && occurrence.key !in dismissedKeys) occurrences.add(occurrence)
             }
         }
         occurrences.sortWith(compareBy<CourseOccurrence> { it.start }.thenBy { it.course.id })

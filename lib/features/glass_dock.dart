@@ -10,7 +10,10 @@ class GlassDock extends StatefulWidget {
     super.key,
     required this.selectedIndex,
     required this.onSelected,
+    this.compact = false,
   });
+  static const double compactHeight = 56, normalHeight = 64;
+  final bool compact;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   @override
@@ -68,6 +71,9 @@ class _GlassDockState extends State<GlassDock> {
 
   @override
   Widget build(BuildContext context) {
+    final innerHeight =
+        (widget.compact ? GlassDock.compactHeight : GlassDock.normalHeight) -
+        _padding * 2;
     final dragging = _dragPosition != null;
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
     final highContrast = MediaQuery.highContrastOf(context);
@@ -84,7 +90,7 @@ class _GlassDockState extends State<GlassDock> {
           curve: Curves.easeOutCubic,
           child: SizedBox(
             width: width,
-            height: 64,
+            height: innerHeight + _padding * 2,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(32),
@@ -142,7 +148,7 @@ class _GlassDockState extends State<GlassDock> {
                                 left: _padding + position * cell,
                                 top: _padding,
                                 width: cell,
-                                height: 52,
+                                height: innerHeight,
                                 child: IgnorePointer(
                                   child: AnimatedScale(
                                     scale: dragging && !reducedMotion
@@ -200,7 +206,7 @@ class _GlassDockState extends State<GlassDock> {
                                                 onPressed: () => _select(i),
                                                 child: SizedBox(
                                                   width: double.infinity,
-                                                  height: 52,
+                                                  height: innerHeight,
                                                   child: Column(
                                                     mainAxisAlignment:
                                                         MainAxisAlignment
@@ -209,7 +215,9 @@ class _GlassDockState extends State<GlassDock> {
                                                       Icon(
                                                         _icons[i],
                                                         size:
-                                                            20 +
+                                                            (widget.compact
+                                                                ? 18
+                                                                : 20) +
                                                             (1 -
                                                                     (position -
                                                                             i)
@@ -238,7 +246,10 @@ class _GlassDockState extends State<GlassDock> {
                                                             _labels[i],
                                                             maxLines: 1,
                                                             style: TextStyle(
-                                                              fontSize: 10,
+                                                              fontSize:
+                                                                  widget.compact
+                                                                  ? 9
+                                                                  : 10,
                                                               fontWeight:
                                                                   FontWeight
                                                                       .w600,

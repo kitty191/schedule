@@ -1,5 +1,10 @@
 import 'package:flutter/cupertino.dart';
 
+bool compactLandscape(BuildContext context) {
+  final size = MediaQuery.sizeOf(context);
+  return size.height < 450 && size.width >= 520;
+}
+
 const courseColors = [
   Color(0xFF007AFF),
   Color(0xFFFF9500),
@@ -75,7 +80,14 @@ Future<int?> pickClock(BuildContext context, String title, int initial) async {
                   onPressed: () => Navigator.pop(context),
                   child: const Text('取消'),
                 ),
-                Text(title, style: const TextStyle(fontSize: 15)),
+                Expanded(
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    style: const TextStyle(fontSize: 15),
+                  ),
+                ),
                 CupertinoButton(
                   onPressed: () => Navigator.pop(context, selected),
                   child: const Text('完成'),
@@ -131,7 +143,14 @@ Future<int?> pickNumber(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('取消'),
                   ),
-                  Text(title, style: const TextStyle(fontSize: 15)),
+                  Expanded(
+                    child: Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      style: const TextStyle(fontSize: 15),
+                    ),
+                  ),
                   CupertinoButton(
                     onPressed: () => Navigator.pop(context, selected),
                     child: const Text('完成'),

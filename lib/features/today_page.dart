@@ -121,7 +121,13 @@ class _TodayPageState extends ConsumerState<TodayPage>
                     onPressed: () => Navigator.pop(context),
                     child: const Text('取消'),
                   ),
-                  const Text('查看日期'),
+                  const Expanded(
+                    child: Text(
+                      '查看日期',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                    ),
+                  ),
                   CupertinoButton(
                     onPressed: () => Navigator.pop(context, true),
                     child: const Text('完成'),
@@ -132,8 +138,8 @@ class _TodayPageState extends ConsumerState<TodayPage>
                 child: CupertinoDatePicker(
                   mode: CupertinoDatePickerMode.date,
                   initialDateTime: _day,
-                  minimumYear: 2020,
-                  maximumYear: 2100,
+                  minimumYear: _day.year < 2020 ? _day.year : 2020,
+                  maximumYear: _day.year > 2100 ? _day.year : 2100,
                   onDateTimeChanged: (date) => selected = date,
                 ),
               ),
@@ -223,6 +229,7 @@ class _TodayPageState extends ConsumerState<TodayPage>
                         child: const Icon(
                           CupertinoIcons.chevron_left,
                           size: 16,
+                          semanticLabel: '上一天',
                         ),
                       ),
                       CupertinoButton(
@@ -242,6 +249,7 @@ class _TodayPageState extends ConsumerState<TodayPage>
                         child: const Icon(
                           CupertinoIcons.chevron_right,
                           size: 16,
+                          semanticLabel: '下一天',
                         ),
                       ),
                     ],
@@ -581,7 +589,11 @@ class CourseRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   MutedText(
-                    '${showWeekday ? '${weekdays[course.weekday - 1]} · ' : ''}${course.location.isEmpty ? '未设置教室' : course.location}',
+                    '${showWeekday
+                        ? course.occurrences == null
+                              ? '${weekdays[course.weekday - 1]} · '
+                              : '${instancesOf(course).length} 次上课 · '
+                        : ''}${course.location.isEmpty ? '未设置教室' : course.location}',
                   ),
                 ],
               ),
@@ -636,7 +648,7 @@ class AllCoursesPage extends ConsumerWidget {
             : ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  const MutedText('每周重复 · 点击课程可编辑或删除'),
+                  const MutedText('按所选星期或导入日期上课 · 点击可编辑或删除'),
                   const SizedBox(height: 16),
                   WhiteCard(
                     child: Column(

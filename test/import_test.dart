@@ -15,6 +15,13 @@ String event({
     'BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:test\nSUMMARY:测试课程\nDTSTART:$start\nDTEND:$end\n$extra\nEND:VEVENT\nEND:VCALENDAR';
 
 void main() {
+  test('Sub-minute entries are reported before they can fail an import transaction', () {
+    final report = IcsImporter().parse(
+      event(start: '20260907T080010Z', end: '20260907T080050Z'),
+    );
+    expect(report.courses, isEmpty);
+    expect(report.warnings.single, contains('同一分钟'));
+  });
   test('WakeUp shape preserves Shanghai, inclusive UNTIL, descriptions, alarms and folded lines', () {
     final report = IcsImporter().parse(
       File('test/fixtures/calendar.ics').readAsStringSync(),
@@ -142,5 +149,24 @@ void main() {
       await upgraded.close();
       await dir.delete(recursive: true);
     }
+  });
+  test('Two meetings on one date are both displayed and reimported without duplicates', () async {
+    final report = IcsImporter().parse(event(extra: 'RDATE:20260907T120000Z'));
+    expect(report.warnings, isEmpty);
+    expect(report.courses, hasLength(2));
+    expect(report.occurrenceCount, 2);
+    final db = ScheduleDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final entries = report.courses.map((c) => c.companion(0)).toList();
+    expect(await db.importCourses(entries), 2);
+    expect(await db.importCourses(entries), 0);
+    final stored = await db.loadCourses();
+    final day = report.courses.first.instances.first.start.toLocal();
+    final displayed = coursesOn(stored, day);
+    expect(displayed, hasLength(2));
+    expect(
+      courseTime(displayed.first, day),
+      isNot(courseTime(displayed.last, day)),
+    );
   });
 }

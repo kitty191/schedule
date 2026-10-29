@@ -11,6 +11,7 @@ import 'components.dart';
 import 'course_editor.dart';
 import 'import_page.dart';
 import 'timetable_settings_page.dart';
+import 'today_page.dart' show CourseRow;
 
 const _timeLabelStyle = TextStyle(
   fontSize: 8.5,
@@ -71,21 +72,84 @@ class _WeekPageState extends ConsumerState<WeekPage> {
     Navigator.push(context, CupertinoPageRoute<void>(builder: (_) => page));
   }
 
+  bool get _wideCompact => compactLandscape(context);
+  bool get _compact => MediaQuery.sizeOf(context).height < 450;
   Widget _tool(String title, IconData icon, Key key, Widget page) => Expanded(
     child: CupertinoButton(
       key: key,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 4, vertical: _compact ? 4 : 12),
       onPressed: () => _open(page),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 23),
-          const SizedBox(height: 8),
-          Text(title, style: const TextStyle(fontSize: 13)),
-        ],
-      ),
+      child: _compact
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 20),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(title, style: const TextStyle(fontSize: 13)),
+                ),
+              ],
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 23),
+                const SizedBox(height: 8),
+                Text(title, style: const TextStyle(fontSize: 13)),
+              ],
+            ),
     ),
   );
+  Widget _toolsRow() => Row(
+    children: [
+      _tool(
+        '添加课程',
+        CupertinoIcons.add_circled,
+        const Key('add-timetable-course'),
+        const CourseEditor(),
+      ),
+      _tool(
+        '导入课表',
+        CupertinoIcons.square_arrow_down,
+        const Key('import-timetable'),
+        const ImportPage(),
+      ),
+      _tool(
+        '课表设置',
+        CupertinoIcons.slider_horizontal_3,
+        const Key('timetable-settings'),
+        const TimetableSettingsPage(),
+      ),
+    ],
+  );
+  List<Widget> _navigation(int weekStart) => [
+    CupertinoButton(
+      key: const Key('previous-week'),
+      padding: const EdgeInsets.all(6),
+      onPressed: () => _move(-7),
+      child: const Icon(
+        CupertinoIcons.chevron_left,
+        size: 16,
+        semanticLabel: '上一周',
+      ),
+    ),
+    CupertinoButton(
+      padding: const EdgeInsets.all(6),
+      key: const Key('this-week'),
+      onPressed: () => _thisWeek(weekStart),
+      child: const Text('本周', style: TextStyle(fontSize: 13)),
+    ),
+    CupertinoButton(
+      key: const Key('next-week'),
+      padding: const EdgeInsets.all(6),
+      onPressed: () => _move(7),
+      child: const Icon(
+        CupertinoIcons.chevron_right,
+        size: 16,
+        semanticLabel: '下一周',
+      ),
+    ),
+  ];
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(appProvider).asData?.value;
@@ -112,24 +176,50 @@ class _WeekPageState extends ConsumerState<WeekPage> {
           DateTime(start.year, start.month, start.day + i),
         ).length,
     ].fold(0, (sum, v) => sum + v);
+    final rangeLabel = Text(
+      key: const Key('week-range'),
+      '${week == null ? '整周总览' : '第 $week 周'} · ${start.month}/${start.day} — ${end.month}/${end.day}',
+      style: const TextStyle(
+        fontSize: 13,
+        color: CupertinoColors.secondaryLabel,
+      ),
+    );
     return CupertinoPageScaffold(
       child: SafeArea(
         bottom: false,
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 24, 20, 8),
+              padding: EdgeInsets.fromLTRB(22, _compact ? 8 : 24, 20, 8),
               child: Row(
                 children: [
-                  const Expanded(
-                    child: Text(
-                      '课表',
-                      style: TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                  Expanded(
+                    child: _wideCompact
+                        ? Row(
+                            children: [
+                              const Text(
+                                '课表',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: _tools ? _toolsRow() : rangeLabel,
+                              ),
+                            ],
+                          )
+                        : Text(
+                            '课表',
+                            style: TextStyle(
+                              fontSize: _compact ? 26 : 34,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
+                  if (_wideCompact && !_tools)
+                    ..._navigation(settings.weekStart),
                   Semantics(
                     label: _tools ? '收起课表工具' : '展开课表工具',
                     button: true,
@@ -142,7 +232,9 @@ class _WeekPageState extends ConsumerState<WeekPage> {
                       onPressed: () => setState(() => _tools = !_tools),
                       child: AnimatedRotation(
                         turns: _tools ? 0.125 : 0,
-                        duration: const Duration(milliseconds: 180),
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 180),
                         child: const Icon(CupertinoIcons.add, size: 24),
                       ),
                     ),
@@ -150,79 +242,41 @@ class _WeekPageState extends ConsumerState<WeekPage> {
                 ],
               ),
             ),
-            ClipRect(
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeInOut,
-                alignment: Alignment.topCenter,
-                child: _tools
-                    ? Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-                        child: WhiteCard(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Row(
-                            children: [
-                              _tool(
-                                '添加课程',
-                                CupertinoIcons.add_circled,
-                                const Key('add-timetable-course'),
-                                const CourseEditor(),
-                              ),
-                              _tool(
-                                '导入课表',
-                                CupertinoIcons.square_arrow_down,
-                                const Key('import-timetable'),
-                                const ImportPage(),
-                              ),
-                              _tool(
-                                '课表设置',
-                                CupertinoIcons.slider_horizontal_3,
-                                const Key('timetable-settings'),
-                                const TimetableSettingsPage(),
-                              ),
-                            ],
+            if (!_wideCompact)
+              ClipRect(
+                child: AnimatedSize(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 220),
+                  curve: Curves.easeInOut,
+                  alignment: Alignment.topCenter,
+                  child: _tools
+                      ? Padding(
+                          padding: _compact
+                              ? const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 4,
+                                )
+                              : const EdgeInsets.fromLTRB(20, 6, 20, 10),
+                          child: WhiteCard(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: _toolsRow(),
                           ),
-                        ),
-                      )
-                    : const SizedBox(width: double.infinity),
+                        )
+                      : const SizedBox(width: double.infinity),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      key: const Key('week-range'),
-                      '${week == null ? '整周总览' : '第 $week 周'} · ${start.month}/${start.day} — ${end.month}/${end.day}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: CupertinoColors.secondaryLabel,
-                      ),
-                    ),
-                  ),
-                  CupertinoButton(
-                    key: const Key('previous-week'),
-                    padding: const EdgeInsets.all(6),
-                    onPressed: () => _move(-7),
-                    child: const Icon(CupertinoIcons.chevron_left, size: 16),
-                  ),
-                  CupertinoButton(
-                    padding: const EdgeInsets.all(6),
-                    key: const Key('this-week'),
-                    onPressed: () => _thisWeek(settings.weekStart),
-                    child: const Text('本周', style: TextStyle(fontSize: 13)),
-                  ),
-                  CupertinoButton(
-                    key: const Key('next-week'),
-                    padding: const EdgeInsets.all(6),
-                    onPressed: () => _move(7),
-                    child: const Icon(CupertinoIcons.chevron_right, size: 16),
-                  ),
-                ],
+            if (!_wideCompact)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(child: rangeLabel),
+                    ..._navigation(settings.weekStart),
+                  ],
+                ),
               ),
-            ),
-            if (courses.isEmpty)
+            if (courses.isEmpty && !_compact)
               const Padding(
                 padding: EdgeInsets.fromLTRB(20, 4, 20, 10),
                 child: MutedText('点击空白格排课，或展开右上角工具添加、导入。'),
@@ -263,6 +317,7 @@ class _Placement {
   _Placement(this.course, this.start, this.end, this.lane, this.lanes);
   final Course course;
   final int start, end, lane;
+  List<Course>? overlapping;
   int lanes;
 }
 
@@ -272,8 +327,20 @@ List<_Placement> _placements(List<Course> courses, DateTime day) {
   var laneEnds = <int>[];
   var groupEnd = -1;
   void finish() {
-    for (final p in group) {
-      p.lanes = laneEnds.length;
+    if (laneEnds.length > 2) {
+      placements.removeWhere(group.contains);
+      final summary = _Placement(
+        group.first.course,
+        group.first.start,
+        groupEnd,
+        0,
+        1,
+      )..overlapping = group.map((p) => p.course).toList();
+      placements.add(summary);
+    } else {
+      for (final p in group) {
+        p.lanes = laneEnds.length;
+      }
     }
     group = [];
     laneEnds = [];
@@ -444,18 +511,27 @@ class WeekGrid extends StatelessWidget {
                             child: GestureDetector(
                               key: Key('blank-weekday-${days[day].weekday}'),
                               behavior: HitTestBehavior.opaque,
-                              onTapUp: (details) => Navigator.push(
-                                context,
-                                CupertinoPageRoute<void>(
-                                  builder: (_) => CourseEditor(
-                                    initialWeekday: days[day].weekday,
-                                    initialPeriod: axis.periodAt(
-                                      details.localPosition.dy,
-                                      settings.periods,
+                              onTapUp: (details) {
+                                final minute = axis
+                                    .minuteAt(details.localPosition.dy)
+                                    .clamp(0, 1438);
+                                final index = settings.periods.indexWhere(
+                                  (p) => minute >= p.start && minute < p.end,
+                                );
+                                final bound = settings.periodView && index >= 0;
+                                Navigator.push(
+                                  context,
+                                  CupertinoPageRoute<void>(
+                                    builder: (_) => CourseEditor(
+                                      initialWeekday: days[day].weekday,
+                                      initialPeriod: bound ? index + 1 : null,
+                                      initialStartMinute: bound
+                                          ? null
+                                          : (minute ~/ 5 * 5),
                                     ),
                                   ),
-                                ),
-                              ),
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -558,15 +634,22 @@ class WeekGrid extends StatelessWidget {
                             ),
                             key: Key('course-card-${p.course.id}-$day'),
                             child: Semantics(
-                              label:
-                                  '${p.course.name} ${weekdays[days[day].weekday - 1]} ${clockText(p.start)} ${p.course.location}',
+                              label: p.overlapping == null
+                                  ? '${p.course.name} ${weekdays[days[day].weekday - 1]} ${clockText(p.start)} ${p.course.location}'
+                                  : '${p.overlapping!.length}门课程重叠，点击查看',
                               button: true,
                               child: GestureDetector(
                                 onTap: () => Navigator.push(
                                   context,
                                   CupertinoPageRoute<void>(
-                                    builder: (_) =>
-                                        CourseEditor(course: p.course),
+                                    builder: (_) => p.overlapping == null
+                                        ? CourseEditor(course: p.course)
+                                        : _OverlappingCoursesPage(
+                                            day: days[day],
+                                            ids: p.overlapping!
+                                                .map((c) => c.id)
+                                                .toSet(),
+                                          ),
                                   ),
                                 ),
                                 child: Container(
@@ -582,7 +665,15 @@ class WeekGrid extends StatelessWidget {
                                             .withValues(alpha: 0.79),
                                     borderRadius: BorderRadius.circular(9),
                                   ),
-                                  child: _CourseText(course: p.course),
+                                  child: _CourseText(
+                                    course: p.overlapping == null
+                                        ? p.course
+                                        : p.course.copyWith(
+                                            name:
+                                                '${p.overlapping!.length}门课程重叠',
+                                            location: '点击查看',
+                                          ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -690,4 +781,48 @@ class _CourseText extends StatelessWidget {
       );
     },
   );
+}
+
+class _OverlappingCoursesPage extends ConsumerWidget {
+  const _OverlappingCoursesPage({required this.day, required this.ids});
+  final DateTime day;
+  final Set<int> ids;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final courses = coursesOn(
+      ref.watch(appProvider).requireValue.courses,
+      day,
+    ).where((c) => ids.contains(c.id)).toList();
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(middle: Text('重叠课程')),
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            MutedText('${dateText(day)} · 点击课程可编辑或删除'),
+            const SizedBox(height: 16),
+            if (courses.isEmpty) const MutedText('这些课程已移除。'),
+            if (courses.isNotEmpty)
+              WhiteCard(
+                child: Column(
+                  children: [
+                    for (final course in courses)
+                      CourseRow(
+                        course: course,
+                        now: day,
+                        onTap: () => Navigator.push(
+                          context,
+                          CupertinoPageRoute<void>(
+                            builder: (_) => CourseEditor(course: course),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
