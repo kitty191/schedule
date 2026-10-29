@@ -32,11 +32,9 @@ jobs:
       - run: flutter analyze
       - run: flutter test
       - run: flutter build apk --release --target-platform android-arm64
-        env:
-          ORG_GRADLE_PROJECT_schedulePreview: "true"
       - run: ./gradlew :app:testDebugUnitTest :app:lintRelease --console=plain
         working-directory: android
       - uses: actions/upload-artifact@v4
         with:
-          name: today-courses-sheets-preview-arm64
+          name: today-courses-arm64
           path: build/app/outputs/flutter-apk/app-release.apk

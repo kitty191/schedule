@@ -4,8 +4,6 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val schedulePreview = providers.gradleProperty("schedulePreview").orNull == "true"
-
 android {
     namespace = "com.kitty191.schedule"
     compileSdk = flutter.compileSdkVersion
@@ -18,8 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = if (schedulePreview) "com.kitty191.schedule.sheets" else "com.kitty191.schedule"
-        manifestPlaceholders["scheduleAppLabel"] = if (schedulePreview) "今天课程·弹层试验" else "今天课程"
+        applicationId = "com.kitty191.schedule"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

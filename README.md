@@ -1,8 +1,6 @@
 # 今天课程
 
-> 当前为 `codex/experiment-course-sheets` 交互试验分支：点击已有课程从底部弹出编辑面板，提醒设置支持下拉收起。
-> [下载独立试验包](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-sheets-preview-1/downloads/today-courses-sheets-preview-1.apk) · [试验、构建与切回说明](docs/COURSE_SHEET_EXPERIMENT.md)
-> 试验包与 1.0.0 并排安装，数据互相独立；原版保持不变。
+1.0.1 已正式加入课程底部编辑面板，并修复提醒设置下拉关闭。[下载正式 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.1/downloads/today-courses-v1.0.1-arm64.apk) · [操作说明](docs/COURSE_SHEET_EXPERIMENT.md)
 
 轻量的课程表 App，使用 Flutter / Dart、Riverpod、Drift / SQLite，以及 Kotlin / Swift 原生通知。
 
@@ -12,7 +10,7 @@
 - **课表**：整周时间网格，左右滑动切换前后周，展示真实上课日期及教室。两门重叠课程并排显示；更多重叠课程合并成数量卡片，点击可逐门查看和编辑。
 - **我的**：课表设置、导入课表、全部课程、提醒设置和学期起始日期。数据保存在本机，无需登录。
 
-底部采用透明悬浮玻璃 Dock：透出后方内容并做背景模糊、边缘高光和玻璃选中透镜。可点击页面按钮，也可在 Dock 上横向拖动，透镜跟手移动，松手吸附并切换页面；取消拖动会回到原选项。支持大字体、高对比度与减少动态效果设置。矮横屏采用紧凑导航并为 Dock 预留空间，避免遮挡星期和日期。课表右上角只有一个可展开/收起的工具按钮，集中提供添加课程、导入课表和课表设置。添加、编辑、导入为独立路由页。
+底部采用透明悬浮玻璃 Dock：透出后方内容并做背景模糊、边缘高光和玻璃选中透镜。可点击页面按钮，也可在 Dock 上横向拖动，透镜跟手移动，松手吸附并切换页面；取消拖动会回到原选项。支持大字体、高对比度与减少动态效果设置。矮横屏采用紧凑导航并为 Dock 预留空间，避免遮挡星期和日期。课表右上角只有一个可展开/收起的工具按钮，集中提供添加课程、导入课表和课表设置。添加和导入使用独立页面；点击已有课程从底部弹出可直接修改的编辑面板，保存、取消或下拉关闭后返回原来的位置。
 
 ## 手势与周次导航
 
@@ -63,7 +61,7 @@ Android 使用 AlarmManager 调度，原生存储保存完整日期，重启、�
 
 iOS 15+ 使用普通本地通知，优先安排最近 60 次提醒，并在重新打开/回到应用时续排；未接入 ActivityKit。iOS 原生代码需要 macOS / Xcode 编译和真机验证，Linux 云环境尚未验证。
 
-[下载 1.0.0 ARM64 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.0/downloads/today-courses-v1.0.0-arm64.apk)。版本号为 1.0.0（10）。与之前版本保持包名 `com.kitty191.schedule` 和同一开发签名，可直接覆盖安装。SQLite 从旧版升到 v4，会保留已有课程、导入日期、课表高度、学期和提醒设置，新增下课提前量默认 10 分钟。当前签名用于测试，尚未配置商店发布签名。
+[下载 1.0.1 ARM64 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.1/downloads/today-courses-v1.0.1-arm64.apk)。版本号为 1.0.1（12）。与之前版本保持包名 `com.kitty191.schedule` 和同一开发签名，可直接覆盖安装。SQLite 从旧版升到 v4，会保留已有课程、导入日期、课表高度、学期和提醒设置，新增下课提前量默认 10 分钟。当前签名用于测试，尚未配置商店发布签名。
 
 真机步骤：安装 → 我的 → 导入课表 → 选择 `.ics` → 核对预览 → 确认导入 → 课表查看对应周。再到“我的 → 提醒设置”主动开启通知、顶部提醒和准时提醒权限，可通过“发送课程预览”立即检查上岛。
 
