@@ -39,13 +39,20 @@ void main() {
         );
         final prefs = await db.loadPreferences();
         await db.savePreferences(
-          prefs.copyWith(reminders: true, leadMinutes: 15),
+          prefs.copyWith(
+            reminders: true,
+            leadMinutes: 37,
+            endingLeadMinutes: 7,
+            useFileReminders: false,
+          ),
         );
         await db.close();
         db = ScheduleDatabase(NativeDatabase(file));
         expect((await db.loadCourses()).single.name, '数学分析');
         expect((await db.loadCourses()).single.location, 'A101');
-        expect((await db.loadPreferences()).leadMinutes, 15);
+        expect((await db.loadPreferences()).leadMinutes, 37);
+        expect((await db.loadPreferences()).endingLeadMinutes, 7);
+        expect((await db.loadPreferences()).useFileReminders, isFalse);
         expect((await db.loadPreferences()).reminders, isTrue);
         await db.removeCourse(course.id);
         await db.close();

@@ -19,6 +19,8 @@ class MemoryController extends AppController {
     id: 1,
     reminders: false,
     leadMinutes: 10,
+    endingLeadMinutes: 10,
+    useFileReminders: true,
   );
   @override
   Future<AppData> build() async => AppData([...seed], prefs);
@@ -217,10 +219,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('提醒设置'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(CupertinoSwitch));
+    await tester.tap(find.byKey(const Key('reminders-enabled')));
     await tester.pumpAndSettle();
     expect(
-      tester.widget<CupertinoSwitch>(find.byType(CupertinoSwitch)).value,
+      tester
+          .widget<CupertinoSwitch>(find.byKey(const Key('reminders-enabled')))
+          .value,
       isFalse,
     );
     await tester.scrollUntilVisible(
@@ -546,6 +550,123 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('下课提醒预览已发送，请回到桌面查看流体云。'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'Custom before-class and before-end minutes save independently and update the preview',
+    (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await openApp(tester);
+      await tester.tap(find.byKey(const Key('tab-2')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('提醒设置'));
+      await tester.pumpAndSettle();
+      final context = tester.element(find.byType(ScheduleApp));
+      final container = ProviderScope.containerOf(context);
+      Future<void> custom(String key, String value) async {
+        await tester.tap(find.byKey(Key(key)));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('自定义分钟'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('custom-reminder-minutes')),
+          value,
+        );
+        await tester.tap(find.byKey(const Key('save-custom-reminder')));
+        await tester.pumpAndSettle();
+      }
+
+      await custom('end-reminder-time', '7');
+      var prefs = container.read(appProvider).requireValue.preferences;
+      expect(prefs.endingLeadMinutes, 7);
+      expect(prefs.leadMinutes, 10);
+      expect(prefs.useFileReminders, isTrue);
+      await custom('pre-reminder-time', '23');
+      prefs = container.read(appProvider).requireValue.preferences;
+      expect(prefs.leadMinutes, 23);
+      expect(prefs.endingLeadMinutes, 7);
+      expect(prefs.useFileReminders, isFalse);
+      await tester.tap(find.byKey(const Key('use-file-reminders')));
+      await tester.pumpAndSettle();
+      expect(
+        container.read(appProvider).requireValue.preferences.useFileReminders,
+        isTrue,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('preview-ending')),
+        240,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView).last,
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('预览下课前 7 分钟提醒'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'Invalid or canceled minute entry keeps old settings and a preset can be selected',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+      await openApp(tester);
+      await tester.tap(find.byKey(const Key('tab-2')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('提醒设置'));
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ScheduleApp)),
+      );
+      final before = container.read(appProvider).requireValue.preferences;
+      await tester.tap(find.byKey(const Key('pre-reminder-time')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('自定义分钟'));
+      await tester.pumpAndSettle();
+      for (final invalid in ['0', '1441', '']) {
+        await tester.enterText(
+          find.byKey(const Key('custom-reminder-minutes')),
+          invalid,
+        );
+        await tester.tap(find.byKey(const Key('save-custom-reminder')));
+        await tester.pumpAndSettle();
+        expect(find.text('请输入 1–1440 之间的整数'), findsOneWidget);
+        expect(container.read(appProvider).requireValue.preferences, before);
+      }
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(container.read(appProvider).requireValue.preferences, before);
+      await tester.tap(find.byKey(const Key('pre-reminder-time')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(CupertinoActionSheetAction, '30 分钟'),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        container.read(appProvider).requireValue.preferences.leadMinutes,
+        30,
+      );
+      expect(
+        container.read(appProvider).requireValue.preferences.useFileReminders,
+        isFalse,
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

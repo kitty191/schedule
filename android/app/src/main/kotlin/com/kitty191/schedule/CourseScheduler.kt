@@ -43,11 +43,13 @@ object CourseScheduler {
         val courses = JSONArray(data["courses"] as? List<*> ?: emptyList<Any>())
         for (i in 0 until courses.length()) parseCourse(courses.getJSONObject(i))
         val lead = (data["leadMinutes"] as? Number)?.toInt() ?: 10
-        require(lead in listOf(5, 10, 15, 20, 30))
+        val endingLead = (data["endingLeadMinutes"] as? Number)?.toInt() ?: 10
+        require(lead in 1..1440 && endingLead in 1..1440)
         check(prefs(context).edit()
             .putString("courses", courses.toString())
             .putBoolean("enabled", data["enabled"] == true)
             .putInt("lead", lead)
+            .putInt("endingLead", endingLead)
             .remove("preview").remove("previewUntil").remove("previewEndAt")
             .commit()) { "系统提醒配置未能保存，请重试。" }
         refresh(context)
@@ -56,10 +58,12 @@ object CourseScheduler {
     fun preview(context: Context, course: Map<*, *>) {
         val value = JSONObject(course)
         parseCourse(value)
-        val until = System.currentTimeMillis() + 5 * 60_000L
+        val now = System.currentTimeMillis()
+        val previewEndAt = if (course["previewEnding"] == true) now + prefs(context).getInt("endingLead", 10) * 60_000L else 0
+        val until = if (previewEndAt > 0) minOf(now + 5 * 60_000L, previewEndAt) else now + 5 * 60_000L
         check(prefs(context).edit().putString("preview", value.toString())
             .putLong("previewUntil", until)
-            .putLong("previewEndAt", if (course["previewEnding"] == true) System.currentTimeMillis() + 10 * 60_000L else 0)
+            .putLong("previewEndAt", previewEndAt)
             .commit())
         refresh(context)
     }
@@ -81,7 +85,8 @@ object CourseScheduler {
         val stored = JSONArray(preferences.getString("courses", "[]"))
         val courses = (0 until stored.length()).map { parseCourse(stored.getJSONObject(it)) }
         return CoursePlanner.plan(courses, System.currentTimeMillis(),
-            preferences.getInt("lead", 10), preferences.getString("dismissed", null))
+            preferences.getInt("lead", 10), preferences.getString("dismissed", null),
+            endingLeadMinutes = preferences.getInt("endingLead", 10))
     }
 
     fun refresh(context: Context) {
@@ -94,7 +99,8 @@ object CourseScheduler {
         var nextRefresh = plan.nextRefresh
         if (preview != null && previewUntil > now) {
             LiveUpdateNotification.show(context, parseCourse(JSONObject(preview)), null, previewUntil,
-                previewEndAt = preferences.getLong("previewEndAt", 0).takeIf { it > now })
+                previewEndAt = preferences.getLong("previewEndAt", 0).takeIf { it > now },
+                previewLeadMinutes = preferences.getInt("endingLead", 10))
             next = previewUntil
             nextRefresh = null
         } else {

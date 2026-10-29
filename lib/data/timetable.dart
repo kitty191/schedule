@@ -88,7 +88,10 @@ int? semesterWeek(DateTime? start, DateTime now, {int weekStart = 1}) {
   return today.difference(monday).inDays ~/ 7 + 1;
 }
 
-Map<String, Object> coursePayload(Course c) => {
+Map<String, Object> coursePayload(
+  Course c, {
+  bool includeFileReminder = true,
+}) => {
   'id': c.id,
   'name': c.name,
   'location': c.location,
@@ -96,7 +99,8 @@ Map<String, Object> coursePayload(Course c) => {
   'startMinute': c.startMinute,
   'endMinute': c.endMinute,
   'kind': c.kind ?? 'course',
-  if (c.reminderMinutes != null) 'leadMinutes': c.reminderMinutes!,
+  if (includeFileReminder && c.reminderMinutes != null)
+    'leadMinutes': c.reminderMinutes!,
   if (c.occurrences != null)
     'occurrences': instancesOf(c).map((i) => i.toMap()).toList(),
 };

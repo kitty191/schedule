@@ -33,6 +33,10 @@ class Preferences extends Table {
   IntColumn get id => integer()();
   BoolColumn get reminders => boolean().withDefault(const Constant(false))();
   IntColumn get leadMinutes => integer().withDefault(const Constant(10))();
+  IntColumn get endingLeadMinutes =>
+      integer().withDefault(const Constant(10))();
+  BoolColumn get useFileReminders =>
+      boolean().withDefault(const Constant(true))();
   DateTimeColumn get semesterStart => dateTime().nullable()();
   TextColumn get timetableConfig => text().nullable()();
 
@@ -46,7 +50,7 @@ class ScheduleDatabase extends _$ScheduleDatabase {
     : super(executor ?? driftDatabase(name: 'schedule'));
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -71,6 +75,10 @@ class ScheduleDatabase extends _$ScheduleDatabase {
         await m.addColumn(courses, courses.startPeriod);
         await m.addColumn(courses, courses.endPeriod);
         await m.addColumn(preferences, preferences.timetableConfig);
+      }
+      if (from < 4) {
+        await m.addColumn(preferences, preferences.endingLeadMinutes);
+        await m.addColumn(preferences, preferences.useFileReminders);
       }
     },
   );
@@ -170,6 +178,13 @@ class ScheduleDatabase extends _$ScheduleDatabase {
   Future<void> removeCourse(int id) =>
       (delete(courses)..where((t) => t.id.equals(id))).go();
 
-  Future<void> savePreferences(Preference value) =>
-      into(preferences).insertOnConflictUpdate(value);
+  Future<void> savePreferences(Preference value) async {
+    if (value.leadMinutes < 1 ||
+        value.leadMinutes > 1440 ||
+        value.endingLeadMinutes < 1 ||
+        value.endingLeadMinutes > 1440) {
+      throw ArgumentError('提醒时间应为 1–1440 分钟。');
+    }
+    await into(preferences).insertOnConflictUpdate(value);
+  }
 }

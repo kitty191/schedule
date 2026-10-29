@@ -139,7 +139,7 @@ class _ImportPageState extends ConsumerState<ImportPage> {
                 padding: const EdgeInsets.all(8),
                 child: CupertinoListTile(
                   title: const Text('沿用文件中的提醒'),
-                  subtitle: const Text('例如提前 20 分钟；未指定时使用全局设置'),
+                  subtitle: const Text('保留文件时间；是否启用可在“提醒设置”切换'),
                   trailing: CupertinoSwitch(
                     value: _keepReminders,
                     onChanged: _busy

@@ -141,4 +141,55 @@ class CoursePlannerTest {
         assertNotEquals(old.endingKey, changed.endingKey)
         assertEquals(time(29,10,20), changed.endingReminderAt)
     }
+
+    @Test fun customLeadMinutesScheduleBothBoundariesIndependently() {
+        fun custom(now: Long) = CoursePlanner.plan(listOf(course), now, 37, zone = zone, endingLeadMinutes = 7)
+        assertNull(custom(time(29,7,52)).active)
+        assertEquals(time(29,7,53), custom(time(29,7,52)).nextWake)
+        assertEquals(CoursePhase.UPCOMING, custom(time(29,7,53)).active!!.phase(time(29,7,53)))
+        val before = custom(time(29,9,52))
+        assertEquals(CoursePhase.IN_CLASS, before.active!!.phase(time(29,9,52)))
+        assertEquals(time(29,9,53), before.nextWake)
+        val ending = custom(time(29,9,53))
+        assertEquals(CoursePhase.ENDING_SOON, ending.active!!.phase(time(29,9,53)))
+        assertEquals(time(29,10,0), ending.nextWake)
+        assertNull(custom(time(29,10,0)).active)
+    }
+    @Test fun customEndingLeadAppliesToImportsButNotEventsAndClampsToClassStart() {
+        val finite = course.copy(fixedOccurrences = listOf(Pair(time(29,8,30),time(29,10,0))))
+        val result = CoursePlanner.plan(listOf(finite), time(29,9,40), 23, zone = zone, endingLeadMinutes = 13)
+        assertEquals(time(29,9,47), result.nextWake)
+        assertEquals(time(29,9,47), result.active!!.endingReminderAt)
+        val longLead = CoursePlanner.plan(listOf(finite), time(29,8,29), 23, zone = zone, endingLeadMinutes = 1440)
+        assertEquals(time(29,8,30), longLead.nextWake)
+        assertEquals(CoursePhase.UPCOMING, longLead.active!!.phase(time(29,8,29)))
+        val event = CoursePlanner.plan(listOf(finite.copy(kind = "event")), time(29,9,50), 23, zone = zone, endingLeadMinutes = 13)
+        assertNull(event.active!!.endingReminderAt)
+        assertEquals(time(29,10,0), event.nextWake)
+    }
+    @Test fun changingEndingLeadRecalculatesPhaseAndAnnouncementKey() {
+        val old = CourseOccurrence(course,time(29,8,30),time(29,10,0),10)
+        val changed = old.copy(endingLeadMinutes = 3)
+        assertNotEquals(old.endingKey, changed.endingKey)
+        assertEquals(old.key, changed.key)
+        assertEquals(CoursePhase.ENDING_SOON, old.phase(time(29,9,55)))
+        assertEquals(CoursePhase.IN_CLASS, changed.phase(time(29,9,55)))
+        assertEquals(time(29,9,57), changed.endingReminderAt)
+    }
+    @Test fun fullDayPreReminderCrossesWeekBoundaryAndSmallestEndingLeadWorks() {
+        val monday = course.copy(weekday = 1, startMinute = 5, endMinute = 45)
+        val result = CoursePlanner.plan(listOf(monday),time(25,0,5),1440,zone = zone,endingLeadMinutes = 1)
+        assertEquals(time(26,0,5), result.active!!.start)
+        assertEquals(time(26,0,44), result.nextWake)
+    }
+    @Test fun invalidGlobalReminderTimesAreRejected() {
+        for (bad in listOf(0,-1,1441)) {
+            assertThrows(IllegalArgumentException::class.java) {
+                CoursePlanner.plan(listOf(course),time(29,8,0),bad,zone = zone)
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                CoursePlanner.plan(listOf(course),time(29,8,0),10,zone = zone,endingLeadMinutes = bad)
+            }
+        }
+    }
 }

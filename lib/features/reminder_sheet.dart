@@ -7,6 +7,7 @@ import '../data/app_controller.dart';
 import '../data/timetable.dart';
 import '../live_update_bridge.dart';
 import 'components.dart';
+import 'reminder_time_picker.dart';
 
 Future<void> showReminderSheet(BuildContext context) =>
     showCupertinoModalPopup<void>(
@@ -132,6 +133,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                         CupertinoListTile(
                           title: const Text('课程与日程提醒'),
                           trailing: CupertinoSwitch(
+                            key: const Key('reminders-enabled'),
                             value: preferences?.reminders ?? false,
                             onChanged: _busy || preferences == null
                                 ? null
@@ -158,59 +160,83 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                           ),
                         ),
                         CupertinoListTile(
-                          title: const Text('默认提前时间'),
+                          title: const Text('上课前提醒'),
                           trailing: CupertinoButton(
+                            key: const Key('pre-reminder-time'),
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                             onPressed: _busy || preferences == null
                                 ? null
                                 : () async {
-                                    final lead =
-                                        await showCupertinoModalPopup<int>(
-                                          context: context,
-                                          builder: (context) =>
-                                              CupertinoActionSheet(
-                                                title: const Text('提前多久提醒'),
-                                                actions: [
-                                                  for (final minutes in [
-                                                    5,
-                                                    10,
-                                                    15,
-                                                    30,
-                                                  ])
-                                                    CupertinoActionSheetAction(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                            context,
-                                                            minutes,
-                                                          ),
-                                                      child: Text(
-                                                        '$minutes 分钟',
-                                                      ),
-                                                    ),
-                                                ],
-                                                cancelButton:
-                                                    CupertinoActionSheetAction(
-                                                      onPressed: () =>
-                                                          Navigator.pop(
-                                                            context,
-                                                          ),
-                                                      child: const Text('取消'),
-                                                    ),
-                                              ),
-                                        );
-                                    if (lead != null && mounted) {
+                                    final minutes = await pickReminderMinutes(
+                                      context,
+                                      title: '上课前多久提醒',
+                                      current: preferences.leadMinutes,
+                                    );
+                                    if (minutes != null && mounted) {
                                       await _run(
                                         () => ref
                                             .read(appProvider.notifier)
                                             .updatePreferences(
                                               preferences.copyWith(
-                                                leadMinutes: lead,
+                                                leadMinutes: minutes,
+                                                useFileReminders: false,
                                               ),
                                             ),
                                       );
                                     }
                                   },
                             child: Text('${preferences?.leadMinutes ?? 10} 分钟'),
+                          ),
+                        ),
+                        if (_android)
+                          CupertinoListTile(
+                            title: const Text('下课前提醒'),
+                            trailing: CupertinoButton(
+                              key: const Key('end-reminder-time'),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              onPressed: _busy || preferences == null
+                                  ? null
+                                  : () async {
+                                      final minutes = await pickReminderMinutes(
+                                        context,
+                                        title: '下课前多久提醒',
+                                        current: preferences.endingLeadMinutes,
+                                      );
+                                      if (minutes != null && mounted) {
+                                        await _run(
+                                          () => ref
+                                              .read(appProvider.notifier)
+                                              .updatePreferences(
+                                                preferences.copyWith(
+                                                  endingLeadMinutes: minutes,
+                                                ),
+                                              ),
+                                        );
+                                      }
+                                    },
+                              child: Text(
+                                '${preferences?.endingLeadMinutes ?? 10} 分钟',
+                              ),
+                            ),
+                          ),
+                        CupertinoListTile(
+                          title: const Text('沿用文件课前提醒'),
+                          trailing: CupertinoSwitch(
+                            key: const Key('use-file-reminders'),
+                            value: preferences?.useFileReminders ?? true,
+                            onChanged: _busy || preferences == null
+                                ? null
+                                : (enabled) => _run(
+                                    () => ref
+                                        .read(appProvider.notifier)
+                                        .updatePreferences(
+                                          preferences.copyWith(
+                                            useFileReminders: enabled,
+                                          ),
+                                        ),
+                                  ),
                           ),
                         ),
                       ],
@@ -220,8 +246,8 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                     padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
                     child: MutedText(
                       _android
-                          ? '课前显示下一节课，上课后切换状态，下课前 10 分钟以流体云显示“快下课”和倒计时，下课后自动结束。日程显示开始/结束状态。导入时沿用文件提醒的课程优先使用文件时间。重叠时优先显示最早开始且尚未结束的一项。'
-                          : 'iOS 使用普通课前通知。导入时沿用文件提醒的课程优先使用文件时间。',
+                          ? '课前显示下一节课，上课后切换状态，下课前 ${preferences?.endingLeadMinutes ?? 10} 分钟以流体云显示“快下课”和倒计时，下课后自动结束。日程显示开始/结束状态。开启“沿用文件课前提醒”时，文件时间优先；修改上课前时间会自动关闭此项并统一使用新时间。提醒时长超过课程长度时，从上课开始显示下课提示。重叠时优先显示最早开始且尚未结束的一项。'
+                          : 'iOS 使用普通课前通知。开启“沿用文件课前提醒”时，文件时间优先；修改上课前时间会自动关闭此项并统一使用新时间。',
                     ),
                   ),
                   if (_status != null)
@@ -285,7 +311,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                         ),
                         const SizedBox(height: 8),
                         const MutedText(
-                          '用今天下一节或已有课程发送一条预览。Android 预览持续 5 分钟，可返回桌面查看。',
+                          '用今天下一节或已有课程发送一条预览。Android 预览最多持续 5 分钟，下课倒计时归零后结束，可返回桌面查看。',
                         ),
                         CupertinoButton(
                           key: const Key('preview-reminder'),
@@ -344,7 +370,9 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                                       );
                                     }
                                   }),
-                            child: const Text('预览下课前 10 分钟提醒'),
+                            child: Text(
+                              '预览下课前 ${preferences?.endingLeadMinutes ?? 10} 分钟提醒',
+                            ),
                           ),
                         CupertinoButton(
                           padding: const EdgeInsets.only(top: 8),

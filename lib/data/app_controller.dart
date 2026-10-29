@@ -43,9 +43,17 @@ class AppController extends AsyncNotifier<AppData> {
     String? error;
     try {
       await ref.read(bridgeProvider).configure({
-        'courses': courses.map(coursePayload).toList(),
+        'courses': courses
+            .map(
+              (course) => coursePayload(
+                course,
+                includeFileReminder: preferences.useFileReminders,
+              ),
+            )
+            .toList(),
         'enabled': preferences.reminders,
         'leadMinutes': preferences.leadMinutes,
+        'endingLeadMinutes': preferences.endingLeadMinutes,
       });
     } on PlatformException catch (e) {
       error = e.message ?? '系统提醒暂未更新，请重新打开应用重试。';

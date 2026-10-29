@@ -19,7 +19,7 @@ object LiveUpdateNotification {
     private const val REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
 
     fun show(context: Context, course: CourseSpec, occurrence: CourseOccurrence?, expires: Long,
-        alert: Boolean = false, previewEndAt: Long? = null): Boolean {
+        alert: Boolean = false, previewEndAt: Long? = null, previewLeadMinutes: Int = 10): Boolean {
         val manager = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED) return false
@@ -55,7 +55,7 @@ object LiveUpdateNotification {
         val location = course.location.ifBlank { "未设置教室" }
         val endClock = occurrence?.let { clockFormat.format(java.util.Date(it.end)) }
         val description = when {
-            previewEndAt != null -> "下课前10分钟提醒预览 · 5分钟后自动结束"
+            previewEndAt != null -> "下课前${previewLeadMinutes}分钟提醒预览 · 倒计时结束或最多5分钟后自动结束"
             occurrence == null -> "课程预览 · 5分钟后自动结束"
             ending -> "下课倒计时 · $endClock 下课"
             inClass -> "${if (event) "进行中" else "正在上课"} · $endClock ${if (event) "结束" else "下课"}"

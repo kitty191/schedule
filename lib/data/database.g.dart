@@ -867,6 +867,33 @@ class $PreferencesTable extends Preferences
     requiredDuringInsert: false,
     defaultValue: const Constant(10),
   );
+  static const VerificationMeta _endingLeadMinutesMeta = const VerificationMeta(
+    'endingLeadMinutes',
+  );
+  @override
+  late final GeneratedColumn<int> endingLeadMinutes = GeneratedColumn<int>(
+    'ending_lead_minutes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(10),
+  );
+  static const VerificationMeta _useFileRemindersMeta = const VerificationMeta(
+    'useFileReminders',
+  );
+  @override
+  late final GeneratedColumn<bool> useFileReminders = GeneratedColumn<bool>(
+    'use_file_reminders',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("use_file_reminders" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _semesterStartMeta = const VerificationMeta(
     'semesterStart',
   );
@@ -895,6 +922,8 @@ class $PreferencesTable extends Preferences
     id,
     reminders,
     leadMinutes,
+    endingLeadMinutes,
+    useFileReminders,
     semesterStart,
     timetableConfig,
   ];
@@ -925,6 +954,24 @@ class $PreferencesTable extends Preferences
         leadMinutes.isAcceptableOrUnknown(
           data['lead_minutes']!,
           _leadMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ending_lead_minutes')) {
+      context.handle(
+        _endingLeadMinutesMeta,
+        endingLeadMinutes.isAcceptableOrUnknown(
+          data['ending_lead_minutes']!,
+          _endingLeadMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('use_file_reminders')) {
+      context.handle(
+        _useFileRemindersMeta,
+        useFileReminders.isAcceptableOrUnknown(
+          data['use_file_reminders']!,
+          _useFileRemindersMeta,
         ),
       );
     }
@@ -967,6 +1014,14 @@ class $PreferencesTable extends Preferences
         DriftSqlType.int,
         data['${effectivePrefix}lead_minutes'],
       )!,
+      endingLeadMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ending_lead_minutes'],
+      )!,
+      useFileReminders: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}use_file_reminders'],
+      )!,
       semesterStart: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}semester_start'],
@@ -988,12 +1043,16 @@ class Preference extends DataClass implements Insertable<Preference> {
   final int id;
   final bool reminders;
   final int leadMinutes;
+  final int endingLeadMinutes;
+  final bool useFileReminders;
   final DateTime? semesterStart;
   final String? timetableConfig;
   const Preference({
     required this.id,
     required this.reminders,
     required this.leadMinutes,
+    required this.endingLeadMinutes,
+    required this.useFileReminders,
     this.semesterStart,
     this.timetableConfig,
   });
@@ -1003,6 +1062,8 @@ class Preference extends DataClass implements Insertable<Preference> {
     map['id'] = Variable<int>(id);
     map['reminders'] = Variable<bool>(reminders);
     map['lead_minutes'] = Variable<int>(leadMinutes);
+    map['ending_lead_minutes'] = Variable<int>(endingLeadMinutes);
+    map['use_file_reminders'] = Variable<bool>(useFileReminders);
     if (!nullToAbsent || semesterStart != null) {
       map['semester_start'] = Variable<DateTime>(semesterStart);
     }
@@ -1017,6 +1078,8 @@ class Preference extends DataClass implements Insertable<Preference> {
       id: Value(id),
       reminders: Value(reminders),
       leadMinutes: Value(leadMinutes),
+      endingLeadMinutes: Value(endingLeadMinutes),
+      useFileReminders: Value(useFileReminders),
       semesterStart: semesterStart == null && nullToAbsent
           ? const Value.absent()
           : Value(semesterStart),
@@ -1035,6 +1098,8 @@ class Preference extends DataClass implements Insertable<Preference> {
       id: serializer.fromJson<int>(json['id']),
       reminders: serializer.fromJson<bool>(json['reminders']),
       leadMinutes: serializer.fromJson<int>(json['leadMinutes']),
+      endingLeadMinutes: serializer.fromJson<int>(json['endingLeadMinutes']),
+      useFileReminders: serializer.fromJson<bool>(json['useFileReminders']),
       semesterStart: serializer.fromJson<DateTime?>(json['semesterStart']),
       timetableConfig: serializer.fromJson<String?>(json['timetableConfig']),
     );
@@ -1046,6 +1111,8 @@ class Preference extends DataClass implements Insertable<Preference> {
       'id': serializer.toJson<int>(id),
       'reminders': serializer.toJson<bool>(reminders),
       'leadMinutes': serializer.toJson<int>(leadMinutes),
+      'endingLeadMinutes': serializer.toJson<int>(endingLeadMinutes),
+      'useFileReminders': serializer.toJson<bool>(useFileReminders),
       'semesterStart': serializer.toJson<DateTime?>(semesterStart),
       'timetableConfig': serializer.toJson<String?>(timetableConfig),
     };
@@ -1055,12 +1122,16 @@ class Preference extends DataClass implements Insertable<Preference> {
     int? id,
     bool? reminders,
     int? leadMinutes,
+    int? endingLeadMinutes,
+    bool? useFileReminders,
     Value<DateTime?> semesterStart = const Value.absent(),
     Value<String?> timetableConfig = const Value.absent(),
   }) => Preference(
     id: id ?? this.id,
     reminders: reminders ?? this.reminders,
     leadMinutes: leadMinutes ?? this.leadMinutes,
+    endingLeadMinutes: endingLeadMinutes ?? this.endingLeadMinutes,
+    useFileReminders: useFileReminders ?? this.useFileReminders,
     semesterStart: semesterStart.present
         ? semesterStart.value
         : this.semesterStart,
@@ -1075,6 +1146,12 @@ class Preference extends DataClass implements Insertable<Preference> {
       leadMinutes: data.leadMinutes.present
           ? data.leadMinutes.value
           : this.leadMinutes,
+      endingLeadMinutes: data.endingLeadMinutes.present
+          ? data.endingLeadMinutes.value
+          : this.endingLeadMinutes,
+      useFileReminders: data.useFileReminders.present
+          ? data.useFileReminders.value
+          : this.useFileReminders,
       semesterStart: data.semesterStart.present
           ? data.semesterStart.value
           : this.semesterStart,
@@ -1090,6 +1167,8 @@ class Preference extends DataClass implements Insertable<Preference> {
           ..write('id: $id, ')
           ..write('reminders: $reminders, ')
           ..write('leadMinutes: $leadMinutes, ')
+          ..write('endingLeadMinutes: $endingLeadMinutes, ')
+          ..write('useFileReminders: $useFileReminders, ')
           ..write('semesterStart: $semesterStart, ')
           ..write('timetableConfig: $timetableConfig')
           ..write(')'))
@@ -1097,8 +1176,15 @@ class Preference extends DataClass implements Insertable<Preference> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, reminders, leadMinutes, semesterStart, timetableConfig);
+  int get hashCode => Object.hash(
+    id,
+    reminders,
+    leadMinutes,
+    endingLeadMinutes,
+    useFileReminders,
+    semesterStart,
+    timetableConfig,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1106,6 +1192,8 @@ class Preference extends DataClass implements Insertable<Preference> {
           other.id == this.id &&
           other.reminders == this.reminders &&
           other.leadMinutes == this.leadMinutes &&
+          other.endingLeadMinutes == this.endingLeadMinutes &&
+          other.useFileReminders == this.useFileReminders &&
           other.semesterStart == this.semesterStart &&
           other.timetableConfig == this.timetableConfig);
 }
@@ -1114,12 +1202,16 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
   final Value<int> id;
   final Value<bool> reminders;
   final Value<int> leadMinutes;
+  final Value<int> endingLeadMinutes;
+  final Value<bool> useFileReminders;
   final Value<DateTime?> semesterStart;
   final Value<String?> timetableConfig;
   const PreferencesCompanion({
     this.id = const Value.absent(),
     this.reminders = const Value.absent(),
     this.leadMinutes = const Value.absent(),
+    this.endingLeadMinutes = const Value.absent(),
+    this.useFileReminders = const Value.absent(),
     this.semesterStart = const Value.absent(),
     this.timetableConfig = const Value.absent(),
   });
@@ -1127,6 +1219,8 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
     this.id = const Value.absent(),
     this.reminders = const Value.absent(),
     this.leadMinutes = const Value.absent(),
+    this.endingLeadMinutes = const Value.absent(),
+    this.useFileReminders = const Value.absent(),
     this.semesterStart = const Value.absent(),
     this.timetableConfig = const Value.absent(),
   });
@@ -1134,6 +1228,8 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
     Expression<int>? id,
     Expression<bool>? reminders,
     Expression<int>? leadMinutes,
+    Expression<int>? endingLeadMinutes,
+    Expression<bool>? useFileReminders,
     Expression<DateTime>? semesterStart,
     Expression<String>? timetableConfig,
   }) {
@@ -1141,6 +1237,8 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
       if (id != null) 'id': id,
       if (reminders != null) 'reminders': reminders,
       if (leadMinutes != null) 'lead_minutes': leadMinutes,
+      if (endingLeadMinutes != null) 'ending_lead_minutes': endingLeadMinutes,
+      if (useFileReminders != null) 'use_file_reminders': useFileReminders,
       if (semesterStart != null) 'semester_start': semesterStart,
       if (timetableConfig != null) 'timetable_config': timetableConfig,
     });
@@ -1150,6 +1248,8 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
     Value<int>? id,
     Value<bool>? reminders,
     Value<int>? leadMinutes,
+    Value<int>? endingLeadMinutes,
+    Value<bool>? useFileReminders,
     Value<DateTime?>? semesterStart,
     Value<String?>? timetableConfig,
   }) {
@@ -1157,6 +1257,8 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
       id: id ?? this.id,
       reminders: reminders ?? this.reminders,
       leadMinutes: leadMinutes ?? this.leadMinutes,
+      endingLeadMinutes: endingLeadMinutes ?? this.endingLeadMinutes,
+      useFileReminders: useFileReminders ?? this.useFileReminders,
       semesterStart: semesterStart ?? this.semesterStart,
       timetableConfig: timetableConfig ?? this.timetableConfig,
     );
@@ -1174,6 +1276,12 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
     if (leadMinutes.present) {
       map['lead_minutes'] = Variable<int>(leadMinutes.value);
     }
+    if (endingLeadMinutes.present) {
+      map['ending_lead_minutes'] = Variable<int>(endingLeadMinutes.value);
+    }
+    if (useFileReminders.present) {
+      map['use_file_reminders'] = Variable<bool>(useFileReminders.value);
+    }
     if (semesterStart.present) {
       map['semester_start'] = Variable<DateTime>(semesterStart.value);
     }
@@ -1189,6 +1297,8 @@ class PreferencesCompanion extends UpdateCompanion<Preference> {
           ..write('id: $id, ')
           ..write('reminders: $reminders, ')
           ..write('leadMinutes: $leadMinutes, ')
+          ..write('endingLeadMinutes: $endingLeadMinutes, ')
+          ..write('useFileReminders: $useFileReminders, ')
           ..write('semesterStart: $semesterStart, ')
           ..write('timetableConfig: $timetableConfig')
           ..write(')'))
@@ -1591,6 +1701,8 @@ typedef $$PreferencesTableCreateCompanionBuilder =
       Value<int> id,
       Value<bool> reminders,
       Value<int> leadMinutes,
+      Value<int> endingLeadMinutes,
+      Value<bool> useFileReminders,
       Value<DateTime?> semesterStart,
       Value<String?> timetableConfig,
     });
@@ -1599,6 +1711,8 @@ typedef $$PreferencesTableUpdateCompanionBuilder =
       Value<int> id,
       Value<bool> reminders,
       Value<int> leadMinutes,
+      Value<int> endingLeadMinutes,
+      Value<bool> useFileReminders,
       Value<DateTime?> semesterStart,
       Value<String?> timetableConfig,
     });
@@ -1624,6 +1738,16 @@ class $$PreferencesTableFilterComposer
 
   ColumnFilters<int> get leadMinutes => $composableBuilder(
     column: $table.leadMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endingLeadMinutes => $composableBuilder(
+    column: $table.endingLeadMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get useFileReminders => $composableBuilder(
+    column: $table.useFileReminders,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1662,6 +1786,16 @@ class $$PreferencesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get endingLeadMinutes => $composableBuilder(
+    column: $table.endingLeadMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get useFileReminders => $composableBuilder(
+    column: $table.useFileReminders,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get semesterStart => $composableBuilder(
     column: $table.semesterStart,
     builder: (column) => ColumnOrderings(column),
@@ -1690,6 +1824,16 @@ class $$PreferencesTableAnnotationComposer
 
   GeneratedColumn<int> get leadMinutes => $composableBuilder(
     column: $table.leadMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endingLeadMinutes => $composableBuilder(
+    column: $table.endingLeadMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get useFileReminders => $composableBuilder(
+    column: $table.useFileReminders,
     builder: (column) => column,
   );
 
@@ -1738,12 +1882,16 @@ class $$PreferencesTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<bool> reminders = const Value.absent(),
                 Value<int> leadMinutes = const Value.absent(),
+                Value<int> endingLeadMinutes = const Value.absent(),
+                Value<bool> useFileReminders = const Value.absent(),
                 Value<DateTime?> semesterStart = const Value.absent(),
                 Value<String?> timetableConfig = const Value.absent(),
               }) => PreferencesCompanion(
                 id: id,
                 reminders: reminders,
                 leadMinutes: leadMinutes,
+                endingLeadMinutes: endingLeadMinutes,
+                useFileReminders: useFileReminders,
                 semesterStart: semesterStart,
                 timetableConfig: timetableConfig,
               ),
@@ -1752,12 +1900,16 @@ class $$PreferencesTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<bool> reminders = const Value.absent(),
                 Value<int> leadMinutes = const Value.absent(),
+                Value<int> endingLeadMinutes = const Value.absent(),
+                Value<bool> useFileReminders = const Value.absent(),
                 Value<DateTime?> semesterStart = const Value.absent(),
                 Value<String?> timetableConfig = const Value.absent(),
               }) => PreferencesCompanion.insert(
                 id: id,
                 reminders: reminders,
                 leadMinutes: leadMinutes,
+                endingLeadMinutes: endingLeadMinutes,
+                useFileReminders: useFileReminders,
                 semesterStart: semesterStart,
                 timetableConfig: timetableConfig,
               ),
