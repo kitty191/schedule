@@ -12,6 +12,12 @@ import 'course_editor.dart';
 import 'import_page.dart';
 import 'timetable_settings_page.dart';
 
+const _timeLabelStyle = TextStyle(
+  fontSize: 8.5,
+  height: 1.1,
+  color: CupertinoColors.secondaryLabel,
+);
+
 class WeekPage extends ConsumerStatefulWidget {
   const WeekPage({super.key});
   @override
@@ -305,6 +311,29 @@ class WeekGrid extends StatelessWidget {
   final DateTime weekStart;
   final List<Course> courses;
   final TimetableSettings settings;
+
+  Widget _hourLabel(
+    int hour,
+    double y,
+    double gutter, {
+    bool extended = false,
+  }) => Positioned(
+    left: 2,
+    width: gutter - 5,
+    top: y,
+    child: FractionalTranslation(
+      // Center the actual laid-out text on its time line, including text scaling.
+      // Keep the very first label within the scroll viewport.
+      translation: Offset(0, y == 0 ? 0 : -0.5),
+      child: Text(
+        clockText(hour * 60),
+        key: Key(extended ? 'extended-time-$hour' : 'hour-time-$hour'),
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        style: _timeLabelStyle,
+      ),
+    ),
+  );
   @override
   Widget build(BuildContext context) {
     final days = List.generate(
@@ -451,20 +480,13 @@ class WeekGrid extends StatelessWidget {
                                 const SizedBox(height: 4),
                                 Text(
                                   clockText(settings.periods[i].start),
-                                  style: const TextStyle(
-                                    fontSize: 8.5,
-                                    height: 1.1,
-                                    color: CupertinoColors.secondaryLabel,
-                                  ),
+                                  key: Key('period-start-time-${i + 1}'),
+                                  style: _timeLabelStyle,
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   clockText(settings.periods[i].end),
-                                  style: const TextStyle(
-                                    fontSize: 8.5,
-                                    height: 1.1,
-                                    color: CupertinoColors.secondaryLabel,
-                                  ),
+                                  style: _timeLabelStyle,
                                 ),
                               ],
                             ),
@@ -485,21 +507,12 @@ class WeekGrid extends StatelessWidget {
                           hour <= lastHour;
                           hour++
                         ) ...[
-                          Positioned(
-                            left: 5,
-                            top: axis.at(hour * 60),
-                            child: Text(
-                              clockText(hour * 60),
-                              style: const TextStyle(
-                                fontSize: 9,
-                                color: CupertinoColors.secondaryLabel,
-                              ),
-                            ),
-                          ),
+                          _hourLabel(hour, axis.at(hour * 60), left),
                           Positioned(
                             left: left,
                             right: 10,
                             top: axis.at(hour * 60),
+                            key: Key('hour-line-$hour'),
                             child: Container(
                               height: 0.5,
                               color: const Color(0xFFE5E8F0),
@@ -512,22 +525,17 @@ class WeekGrid extends StatelessWidget {
                               hour * 60 <= latest &&
                               (hour * 60 < settings.periods.first.start ||
                                   hour * 60 > settings.periods.last.end)) ...[
-                            Positioned(
-                              left: 5,
-                              top: axis.at(hour * 60),
-                              child: Text(
-                                clockText(hour * 60),
-                                key: Key('extended-time-$hour'),
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  color: CupertinoColors.secondaryLabel,
-                                ),
-                              ),
+                            _hourLabel(
+                              hour,
+                              axis.at(hour * 60),
+                              left,
+                              extended: true,
                             ),
                             Positioned(
                               left: left,
                               right: 10,
                               top: axis.at(hour * 60),
+                              key: Key('extended-line-$hour'),
                               child: Container(
                                 height: 0.5,
                                 color: const Color(0xFFE5E8F0),

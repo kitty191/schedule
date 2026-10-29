@@ -78,10 +78,79 @@ void main() {
           )) {
             expect(box.bottom, lessThanOrEqualTo(title.size.height + 0.01));
           }
-          expect(find.byKey(const Key('extended-time-20')), findsOneWidget);
+          final periodTime = find.byKey(const Key('period-start-time-12'));
+          for (final hour in [20, 21]) {
+            final tick = find.byKey(Key('extended-time-$hour'));
+            final line = find.byKey(Key('extended-line-$hour'));
+            expect(tick, findsOneWidget);
+            expect(
+              tester.getCenter(tick).dx,
+              closeTo(tester.getCenter(periodTime).dx, 0.01),
+            );
+            expect(
+              tester.getCenter(tick).dy,
+              closeTo(tester.getTopLeft(line).dy, 0.01),
+            );
+            expect(
+              tester.widget<Text>(tick).style,
+              tester.widget<Text>(periodTime).style,
+            );
+          }
           expect(tester.takeException(), isNull);
         },
       );
     }
+  }
+  for (final scale in [1.0, 1.3]) {
+    testWidgets(
+      'Hourly tick centers align with grid lines at text scale $scale',
+      (tester) async {
+        tester.view.physicalSize = const Size(393, 852);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        await tester.pumpWidget(
+          CupertinoApp(
+            home: MediaQuery(
+              data: MediaQueryData(
+                size: const Size(393, 852),
+                textScaler: TextScaler.linear(scale),
+              ),
+              child: CupertinoPageScaffold(
+                child: WeekGrid(
+                  weekStart: DateTime(2026, 10, 26),
+                  courses: const [],
+                  settings: TimetableSettings.defaults().copyWith(
+                    periodView: false,
+                    heightPercent: 60,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final first = find.byKey(const Key('hour-time-8'));
+        final tick = find.byKey(const Key('hour-time-9'));
+        final line = find.byKey(const Key('hour-line-9'));
+        expect(
+          tester.getCenter(tick).dx,
+          closeTo(tester.getCenter(first).dx, 0.01),
+        );
+        expect(
+          tester.getCenter(tick).dy,
+          closeTo(tester.getTopLeft(line).dy, 0.01),
+        );
+        expect(
+          tester.getTopLeft(first).dy,
+          greaterThanOrEqualTo(
+            tester.getTopLeft(find.byKey(const Key('hour-line-8'))).dy,
+          ),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }
