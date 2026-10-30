@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/app_controller.dart';
 import '../data/timetable.dart';
+import '../data/timetable_settings.dart';
 import '../live_update_bridge.dart';
 import 'components.dart';
 import 'reminder_time_picker.dart';
@@ -299,8 +300,10 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                           style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 8),
-                        const MutedText(
-                          '用今天下一节或已有课程发送一条预览。Android 预览最多持续 5 分钟，下课倒计时归零后结束，可返回桌面查看。',
+                        MutedText(
+                          _android
+                              ? '使用已有课程的名称和教室，模拟即将上课或下课。预览中的时刻仅用于测试，最多显示 5 分钟。返回桌面并展开顶部提醒查看；卡片样式由手机系统决定。'
+                              : '用今天下一节或已有课程发送一条普通通知预览。',
                         ),
                         CupertinoButton(
                           key: const Key('preview-reminder'),
@@ -317,7 +320,16 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                                       data.courses.first;
                                   final status = await ref
                                       .read(bridgeProvider)
-                                      .preview(coursePayload(course));
+                                      .preview(
+                                        coursePayload(
+                                          course,
+                                          includeFileReminder:
+                                              data.preferences.useFileReminders,
+                                          timetable: TimetableSettings.decode(
+                                            data.preferences.timetableConfig,
+                                          ),
+                                        ),
+                                      );
                                   if (mounted) {
                                     setState(() {
                                       _message = status.active
@@ -350,7 +362,17 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                                         );
                                     final status = await ref
                                         .read(bridgeProvider)
-                                        .previewEnding(coursePayload(course));
+                                        .previewEnding(
+                                          coursePayload(
+                                            course,
+                                            includeFileReminder: data
+                                                .preferences
+                                                .useFileReminders,
+                                            timetable: TimetableSettings.decode(
+                                              data.preferences.timetableConfig,
+                                            ),
+                                          ),
+                                        );
                                     if (mounted) {
                                       setState(
                                         () => _message = status.active

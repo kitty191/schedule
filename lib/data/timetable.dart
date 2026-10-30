@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'database.dart';
+import 'timetable_settings.dart';
 
 const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -91,16 +92,33 @@ int? semesterWeek(DateTime? start, DateTime now, {int weekStart = 1}) {
 Map<String, Object> coursePayload(
   Course c, {
   bool includeFileReminder = true,
-}) => {
-  'id': c.id,
-  'name': c.name,
-  'location': c.location,
-  'weekday': c.weekday,
-  'startMinute': c.startMinute,
-  'endMinute': c.endMinute,
-  'kind': c.kind ?? 'course',
-  if (includeFileReminder && c.reminderMinutes != null)
-    'leadMinutes': c.reminderMinutes!,
-  if (c.occurrences != null)
-    'occurrences': instancesOf(c).map((i) => i.toMap()).toList(),
-};
+  TimetableSettings? timetable,
+}) {
+  var first = c.startPeriod, last = c.endPeriod;
+  // Imported/custom times have a period label only when both boundaries match exactly.
+  if (!isEvent(c) && first == null && timetable != null) {
+    final start = timetable.periods.indexWhere((p) => p.start == c.startMinute);
+    final end = timetable.periods.indexWhere((p) => p.end == c.endMinute);
+    if (start >= 0 && end >= start) {
+      first = start + 1;
+      last = end + 1;
+    }
+  }
+  return {
+    'id': c.id,
+    'name': c.name,
+    'location': c.location,
+    'weekday': c.weekday,
+    'startMinute': c.startMinute,
+    'endMinute': c.endMinute,
+    'kind': c.kind ?? 'course',
+    if (!isEvent(c) && first != null && last != null) ...{
+      'startPeriod': first,
+      'endPeriod': last,
+    },
+    if (includeFileReminder && c.reminderMinutes != null)
+      'leadMinutes': c.reminderMinutes!,
+    if (c.occurrences != null)
+      'occurrences': instancesOf(c).map((i) => i.toMap()).toList(),
+  };
+}

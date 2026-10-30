@@ -99,7 +99,7 @@ class CoursePlannerTest {
         val before = plan(time(29, 9, 49))
         assertEquals(CoursePhase.IN_CLASS, before.active!!.phase(time(29,9,49)))
         assertEquals(time(29,9,50), before.nextWake)
-        assertNull(before.nextRefresh)
+        assertEquals(time(29,9,50), before.nextRefresh)
         val ending = plan(time(29,9,50))
         assertEquals(CoursePhase.ENDING_SOON, ending.active!!.phase(time(29,9,50)))
         assertEquals(CoursePhase.ENDING_SOON, ending.active!!.phase(time(29,9,59)))
@@ -111,7 +111,7 @@ class CoursePlannerTest {
         assertEquals(time(29,8,26), before.nextRefresh)
         assertEquals(time(29,9,50), before.nextWake)
         val started = plan(time(29,8,30))
-        assertNull(started.nextRefresh)
+        assertEquals(time(29,8,31), started.nextRefresh)
         assertEquals(time(29,9,50), started.nextWake)
     }
     @Test fun shortClassesStartEndingReminderAtStartInsteadOfBeforeClass() {
@@ -214,6 +214,16 @@ class CoursePlannerTest {
         val plan = CoursePlanner.plan(listOf(first,second),now,10,dismissed=old,zone=zone,dismissedKeys=setOf(recent))
         assertNull(plan.active)
         assertNull(plan.nextWake)
+    }
+
+    @Test fun progressRefreshContinuesDuringClassAndStopsAtTheEndWithoutExtraWakeups() {
+        val inClass = plan(time(29,9,0))
+        assertEquals(time(29,9,1), inClass.nextRefresh)
+        assertEquals(time(29,9,50), inClass.nextWake)
+        val ending = plan(time(29,9,59) + 59_000)
+        assertEquals(time(29,10,0), ending.nextRefresh)
+        assertEquals(time(29,10,0), ending.nextWake)
+        assertNull(plan(time(29,10,0)).nextRefresh)
     }
 
 }

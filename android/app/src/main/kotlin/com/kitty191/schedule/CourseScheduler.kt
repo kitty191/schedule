@@ -32,10 +32,15 @@ object CourseScheduler {
             value.getInt("id"), value.getString("name").trim(), value.optString("location"),
             value.getInt("weekday"), value.getInt("startMinute"), value.getInt("endMinute"),
             fixed, lead, value.optString("kind", "course"),
+            if (value.has("startPeriod")) value.getInt("startPeriod") else null,
+            if (value.has("endPeriod")) value.getInt("endPeriod") else null,
         )
         require(course.name.isNotEmpty() && course.name.length <= 60)
         require(course.weekday in 1..7 && course.startMinute in 0..1438 &&
             course.endMinute in 1..1439 && course.endMinute > course.startMinute)
+        require((course.startPeriod == null && course.endPeriod == null) ||
+            (course.startPeriod != null && course.endPeriod != null &&
+                course.startPeriod in 1..24 && course.endPeriod in course.startPeriod..24))
         return course
     }
 
@@ -44,26 +49,32 @@ object CourseScheduler {
         for (i in 0 until courses.length()) parseCourse(courses.getJSONObject(i))
         val lead = (data["leadMinutes"] as? Number)?.toInt() ?: 10
         val endingLead = (data["endingLeadMinutes"] as? Number)?.toInt() ?: 10
-        require(lead in 1..1440 && endingLead in 1..1440)
+        val weekStart = (data["weekStart"] as? Number)?.toInt() ?: 1
+        require(lead in 1..1440 && endingLead in 1..1440 && weekStart in 1..7)
         check(prefs(context).edit()
             .putString("courses", courses.toString())
             .putBoolean("enabled", data["enabled"] == true)
             .putInt("lead", lead)
             .putInt("endingLead", endingLead)
-            .remove("preview").remove("previewUntil").remove("previewEndAt")
+            .putInt("weekStart", weekStart)
+            .putString("semesterStart", data["semesterStart"] as? String)
+            .remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt")
             .commit()) { "系统提醒配置未能保存，请重试。" }
         refresh(context)
     }
 
     fun preview(context: Context, course: Map<*, *>) {
         val value = JSONObject(course)
-        parseCourse(value)
+        val spec = parseCourse(value)
         val now = System.currentTimeMillis()
-        val previewEndAt = if (course["previewEnding"] == true) now + prefs(context).getInt("endingLead", 10) * 60_000L else 0
-        val until = if (previewEndAt > 0) minOf(now + 5 * 60_000L, previewEndAt) else now + 5 * 60_000L
+        val preferences = prefs(context)
+        val occurrence = CourseLiveCard.previewOccurrence(spec, now, preferences.getInt("lead", 10),
+            preferences.getInt("endingLead", 10), course["previewEnding"] == true)
+        val until = minOf(now + 5 * 60_000L, occurrence.end)
         check(prefs(context).edit().putString("preview", value.toString())
             .putLong("previewUntil", until)
-            .putLong("previewEndAt", previewEndAt)
+            .putLong("previewStartAt", occurrence.start)
+            .putLong("previewEndAt", occurrence.end)
             .commit())
         refresh(context)
     }
@@ -72,7 +83,7 @@ object CourseScheduler {
         val preferences = prefs(context)
         val isPreview = preferences.getLong("previewUntil", 0) > System.currentTimeMillis()
         val occurrence = currentPlan(context).active
-        val edit = preferences.edit().remove("preview").remove("previewUntil").remove("previewEndAt")
+        val edit = preferences.edit().remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt")
         if (!isPreview && occurrence != null) {
             val oldest = System.currentTimeMillis() - 24 * 60 * 60_000L
             val dismissed = preferences.getStringSet("dismissedKeys", emptySet()).orEmpty()
@@ -106,19 +117,33 @@ object CourseScheduler {
         var next = plan.nextWake
         var nextRefresh = plan.nextRefresh
         if (preview != null && previewUntil > now) {
-            LiveUpdateNotification.show(context, parseCourse(JSONObject(preview)), null, previewUntil,
-                previewEndAt = preferences.getLong("previewEndAt", 0).takeIf { it > now },
-                previewLeadMinutes = preferences.getInt("endingLead", 10))
+            val value = JSONObject(preview)
+            val spec = parseCourse(value)
+            // A still-active preview can survive an app update from the old format.
+            val occurrence = if (preferences.contains("previewStartAt")) {
+                CourseOccurrence(spec, preferences.getLong("previewStartAt", now),
+                    preferences.getLong("previewEndAt", previewUntil), preferences.getInt("endingLead", 10))
+            } else {
+                CourseLiveCard.previewOccurrence(spec, now, preferences.getInt("lead", 10),
+                    preferences.getInt("endingLead", 10), value.optBoolean("previewEnding", false)).also {
+                    preferences.edit().putLong("previewStartAt", it.start).putLong("previewEndAt", it.end).apply()
+                }
+            }
+            LiveUpdateNotification.show(context, spec, occurrence, previewUntil,
+                leadMinutes = preferences.getInt("lead", 10), semesterStart = preferences.getString("semesterStart", null),
+                weekStart = preferences.getInt("weekStart", 1), preview = true)
             next = previewUntil
-            nextRefresh = null
+            nextRefresh = minOf(now + 60_000L, if (now < occurrence.start) occurrence.start else previewUntil)
         } else {
-            if (preview != null) preferences.edit().remove("preview").remove("previewUntil").remove("previewEndAt").apply()
+            if (preview != null) preferences.edit().remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt").apply()
             val active = plan.active
             if (active == null) LiveUpdateNotification.cancel(context)
             else {
                 val newEnding = active.phase(now) == CoursePhase.ENDING_SOON &&
                     preferences.getString("endingAnnounced", null) != active.endingKey
-                val posted = LiveUpdateNotification.show(context, active.course, active, active.end, alert = newEnding)
+                val posted = LiveUpdateNotification.show(context, active.course, active, active.end, alert = newEnding,
+                    leadMinutes = preferences.getInt("lead", 10), semesterStart = preferences.getString("semesterStart", null),
+                    weekStart = preferences.getInt("weekStart", 1))
                 if (posted && newEnding) preferences.edit().putString("endingAnnounced", active.endingKey).apply()
             }
         }

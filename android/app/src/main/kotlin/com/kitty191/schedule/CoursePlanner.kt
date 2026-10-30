@@ -9,6 +9,7 @@ data class CourseSpec(
     val weekday: Int, val startMinute: Int, val endMinute: Int,
     val fixedOccurrences: List<Pair<Long, Long>>? = null,
     val leadMinutes: Int? = null, val kind: String = "course",
+    val startPeriod: Int? = null, val endPeriod: Int? = null,
 )
 
 enum class CoursePhase { UPCOMING, IN_CLASS, ENDING_SOON }
@@ -62,11 +63,11 @@ object CoursePlanner {
         fun lead(occurrence: CourseOccurrence) = (occurrence.course.leadMinutes ?: leadMinutes) * 60_000L
         val active = occurrences.firstOrNull { now >= it.start - lead(it) && now < it.end }
         // Only reminder boundaries use wake-up alarms. Cosmetic minute refreshes
-        // and the start-state transition must not consume allow-while-idle quota.
+        // and progress updates must not consume allow-while-idle quota.
         val boundaries = occurrences.flatMap { listOfNotNull(it.start - lead(it), it.endingReminderAt, it.end) }
             .filter { it > now }
         val wake = boundaries.minOrNull()
-        val refresh = active?.takeIf { now < it.start }?.let { minOf(now + 60_000L, it.start) }
+        val refresh = active?.let { minOf(now + 60_000L, if (now < it.start) it.start else it.end) }
         return CoursePlan(active, wake, refresh)
     }
 }
