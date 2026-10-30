@@ -1,14 +1,27 @@
 package com.kitty191.schedule
 
+import android.Manifest
+import android.app.Activity
 import android.app.Application
 import android.app.Notification
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Looper
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Chronometer
+import android.widget.FrameLayout
+import java.time.Duration
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystem
+import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [37], application = Application::class)
@@ -47,7 +60,8 @@ class LiveUpdateNotificationTest {
         assertEquals(now + 5 * 60_000, notification.`when`)
         assertTrue(notification.extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER))
         assertTrue(notification.extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN))
-        assertEquals("5分上课", notification.shortCriticalText)
+        assertNull(notification.shortCriticalText)
+        assertTrue(notification.extras.getBoolean(Notification.EXTRA_SHOW_WHEN))
         assertEquals(95 * 60_000L, notification.timeoutAfter)
         assertTrue(notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString().contains("大学英语 · B402"))
     }
@@ -100,5 +114,94 @@ class LiveUpdateNotificationTest {
         CourseScheduler.stop(context)
         assertFalse(preferences.contains("preview"))
         assertFalse(preferences.contains("previewStartAt"))
+    }
+
+    @Test @Config(sdk = [36, 37]) fun nativeTimerTicksWithoutRepostingOrOpeningTheNotification() =
+        assertSystemTimerKeepsTime(sleep = false)
+
+    @Test @Config(sdk = [36, 37]) fun nativeTimerCatchesUpAfterSleepWithoutAppRefreshOrExpansion() =
+        assertSystemTimerKeepsTime(sleep = true)
+
+    private fun assertSystemTimerKeepsTime(sleep: Boolean) {
+        // Framework classes use Robolectric's virtual wall clock, unlike test JVM code.
+        val postedAt = ShadowSystem.currentTimeMillis()
+        val instance = CourseOccurrence(course, postedAt + 14 * 60_000, postedAt + 99 * 60_000)
+        val card = CourseLiveCard.create(course, instance, postedAt, 20)
+        val notification = LiveUpdateNotification.buildNotification(
+            RuntimeEnvironment.getApplication(), card, instance.end, postedAt)
+        assertNull(notification.shortCriticalText)
+        // Render the system's ordinary collapsed notification view in a test host.
+        // No app resume, scheduler refresh, notification repost or expansion is performed.
+        val host = Robolectric.buildActivity(Activity::class.java).setup()
+        try {
+            val activity = host.get()
+            val view = Notification.Builder.recoverBuilder(activity, notification)
+                .createContentView().apply(activity, FrameLayout(activity))
+            activity.setContentView(view)
+            host.visible().windowFocusChanged(true)
+            // SystemUI supplies this window event on a device; the test host has
+            // no real window manager to transition its window out of GONE.
+            activity.window.decorView.dispatchWindowVisibilityChanged(View.VISIBLE)
+            fun findTimer(view: View): Chronometer? {
+                if (view is Chronometer) return view
+                if (view is ViewGroup) for (index in 0 until view.childCount) {
+                    findTimer(view.getChildAt(index))?.let { return it }
+                }
+                return null
+            }
+            val timer = checkNotNull(findTimer(view)) { "System notification has no chronometer" }
+            assertEquals(View.VISIBLE, timer.visibility)
+            assertTrue(timer.isCountDown)
+            fun seconds(): Int = timer.text.toString().trim().split(':').fold(0) { sum, part -> sum * 60 + part.toInt() }
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            val before = seconds()
+            assertTrue("Expected about fourteen minutes remaining, got $before seconds", before in 837..840)
+            if (sleep) {
+                activity.window.decorView.dispatchWindowVisibilityChanged(View.GONE)
+                ShadowSystemClock.simulateDeepSleep(Duration.ofMinutes(6))
+                activity.window.decorView.dispatchWindowVisibilityChanged(View.VISIBLE)
+                shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            } else shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(6))
+            val after = seconds()
+            assertTrue("Timer did not advance by six minutes: $before -> $after", before - after in 359..361)
+            assertTrue("Expected about eight minutes remaining, got $after seconds", after in 477..480)
+            assertEquals(instance.start, notification.`when`)
+        } finally {
+            host.pause().stop().destroy()
+        }
+    }
+
+    @Test fun eachPhaseKeepsTheSameAbsoluteTargetUntilTheClassStarts() {
+        val start = now + 14 * 60_000
+        val instance = CourseOccurrence(course, start, start + 85 * 60_000)
+        for (at in listOf(now, now + 6 * 60_000, start, instance.end - 10 * 60_000)) {
+            val card = CourseLiveCard.create(course, instance, at, 20)
+            val notification = LiveUpdateNotification.buildNotification(
+                RuntimeEnvironment.getApplication(), card, instance.end, at)
+            assertNull(notification.shortCriticalText)
+            assertTrue(notification.extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER))
+            assertTrue(notification.extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN))
+            assertEquals(if (at < start) start else instance.end, notification.`when`)
+            assertEquals(instance.end - at, notification.timeoutAfter)
+        }
+    }
+
+    @Test fun updatingAnOldPinnedReminderRemovesTheStaleChipText() {
+        val application = RuntimeEnvironment.getApplication()
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val postedAt = System.currentTimeMillis()
+        val instance = CourseOccurrence(course, postedAt + 8 * 60_000, postedAt + 93 * 60_000)
+        assertTrue(LiveUpdateNotification.show(application, course, instance, instance.end))
+        val manager = application.getSystemService(NotificationManager::class.java)
+        val original = manager.activeNotifications.single()
+        val pinned = Notification.Builder.recoverBuilder(application, original.notification)
+            .setShortCriticalText("14分上课").build()
+        manager.notify(original.id, pinned)
+        assertEquals("14分上课", manager.activeNotifications.single().notification.shortCriticalText)
+        assertTrue(LiveUpdateNotification.show(application, course, instance, instance.end))
+        val refreshed = manager.activeNotifications.single().notification
+        assertNull(refreshed.shortCriticalText)
+        assertEquals(instance.start, refreshed.`when`)
+        assertTrue(refreshed.hasPromotableCharacteristics())
     }
 }

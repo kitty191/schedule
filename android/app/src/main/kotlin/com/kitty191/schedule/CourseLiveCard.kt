@@ -10,7 +10,6 @@ data class CourseLiveCard(
     val headline: String,
     val detail: String,
     val metadata: String,
-    val critical: String,
     val expandedText: String,
     val countdownTo: Long,
     val progress: Int,
@@ -54,11 +53,6 @@ data class CourseLiveCard(
                 event -> "进行中"
                 else -> "上课中"
             }
-            val critical = if (upcoming || ending) {
-                // Keep well within the system chip's small text budget, even for 24 h leads.
-                val remaining = if (minutes < 60) "${minutes}分" else "${ceil(minutes / 60.0).toInt()}时"
-                "$remaining${if (upcoming) startVerb else endVerb}"
-            } else phase
             fun date(at: Long) = Calendar.getInstance(zone).apply { timeInMillis = at }
             fun minute(at: Long): Int = date(at).let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
             fun clock(at: Long): String = String.format(Locale.ROOT, "%02d:%02d", minute(at) / 60, minute(at) % 60)
@@ -84,7 +78,7 @@ data class CourseLiveCard(
                 (preparation * PROGRESS_MAX / duration).toInt().coerceIn(1, PROGRESS_MAX - 1)
             val countdown = "${minutes}分钟后${if (upcoming) startVerb else endVerb}"
             return CourseLiveCard(
-                headline, "${course.name} · $location", metadata, critical,
+                headline, "${course.name} · $location", metadata,
                 "${course.name}\n$headline\n$location\n$metadata\n$countdown", target,
                 progress, preparationEnd,
             )

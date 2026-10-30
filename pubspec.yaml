@@ -1,7 +1,7 @@
 name: schedule
 description: A simple daily timetable with native course reminders.
 publish_to: none
-version: 1.0.2+13
+version: 1.0.3+14
 
 environment:
   sdk: ^3.13.7

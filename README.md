@@ -1,6 +1,6 @@
 # 今天课程
 
-1.0.2 将 Android 流体云改为紫色进度卡片，展示上下课时刻、课程教室、节次和教学周。[下载新版 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.2/downloads/today-courses-v1.0.2-arm64.apk) · [显示内容及真机验证](docs/LIVE_UPDATE_CARD.md)
+1.0.3 修复流体云收起时倒计时不动的问题，使用系统计时器持续更新时间，并保留紫色课程进度卡片。[下载新版 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.3/downloads/today-courses-v1.0.3-arm64.apk) · [显示内容及真机验证](docs/LIVE_UPDATE_CARD.md)
 
 已保留课程底部编辑面板和提醒设置下拉关闭。[操作说明](docs/COURSE_SHEET_EXPERIMENT.md)
 
@@ -53,7 +53,9 @@
 
 ## 提醒与安装
 
-Android 16+ 使用公开 Live Updates 通知协议，沿用已在 OPPO / ColorOS 上岛成功的渠道。新版使用 ProgressStyle：上下课时刻、课程和教室、节次与教学周、灰色课前段和紫色上课段、开课节点和跟随进度的书本图标。课前倒计时 → 正在上课 → 下课前切换“快下课”和系统倒计时 → 下课自动撤下；一次性日程使用“开始 / 进行中 / 结束”文案。普通 Android 持续通知提供完整文字与普通进度条。实际流体云排版与颜色由手机系统决定，不能保证与 iOS 参考图相同；[详见说明](docs/LIVE_UPDATE_CARD.md)。
+Android 16+ 使用公开 Live Updates 通知协议，沿用已在 OPPO / ColorOS 上岛成功的渠道。新版使用 ProgressStyle：上下课时刻、课程和教室、节次与教学周、灰色课前段和紫色上课段、开课节点和跟随进度的书本图标。课前倒计时 → 上课后切到距离下课的倒计时 → 下课前标记“快下课” → 下课自动撤下；一次性日程使用“开始 / 进行中 / 结束”文案。普通 Android 持续通知提供完整文字与普通进度条。实际流体云排版与颜色由手机系统决定，不能保证与 iOS 参考图相同；[详见说明](docs/LIVE_UPDATE_CARD.md)。
+
+收起与展开均使用同一个系统计时器，不再把“14分上课”这类固定文字写入顶部胶囊。顶部的数字和格式由系统绘制，不需要打开流体云或依赖 App 的分钟刷新；课程阶段保留在展开卡片中。
 
 在“我的 → 提醒设置”分别设置上课前多久提醒，以及 Android 下课前多久显示流体云。两项默认均为 10 分钟，可选常用时间或自填 **1–1440 分钟**，保存后立即重新调度，重启后保留。下课提前量超过课程长度时，从上课开始显示下课提示；不会在上课前误报下课。日程仅使用开始前提醒。
 
@@ -63,7 +65,7 @@ Android 使用 AlarmManager 调度，原生存储保存完整日期，重启、�
 
 iOS 15+ 使用普通本地通知，优先安排最近 60 次提醒，并在重新打开/回到应用时续排；未接入 ActivityKit。iOS 原生代码需要 macOS / Xcode 编译和真机验证，Linux 云环境尚未验证。
 
-[下载 1.0.2 ARM64 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.2/downloads/today-courses-v1.0.2-arm64.apk)。版本号为 1.0.2（13）。与之前版本保持包名 `com.kitty191.schedule` 和同一开发签名，可直接覆盖安装。SQLite 从旧版升到 v4，会保留已有课程、导入日期、课表高度、学期和提醒设置，新增下课提前量默认 10 分钟。当前签名用于测试，尚未配置商店发布签名。
+[下载 1.0.3 ARM64 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.3/downloads/today-courses-v1.0.3-arm64.apk)。版本号为 1.0.3（14）。与之前版本保持包名 `com.kitty191.schedule` 和同一开发签名，可直接覆盖安装。SQLite 从旧版升到 v4，会保留已有课程、导入日期、课表高度、学期和提醒设置，新增下课提前量默认 10 分钟。当前签名用于测试，尚未配置商店发布签名。
 
 真机步骤：安装 → 我的 → 导入课表 → 选择 `.ics` → 核对预览 → 确认导入 → 课表查看对应周。再到“我的 → 提醒设置”主动开启通知、顶部提醒和准时提醒权限，可通过“发送课程预览”立即检查上岛。
 

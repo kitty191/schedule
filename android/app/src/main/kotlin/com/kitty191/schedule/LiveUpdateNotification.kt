@@ -65,7 +65,12 @@ object LiveUpdateNotification {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .addAction(Notification.Action.Builder(null, "结束提醒", stop).build())
         if (Build.VERSION.SDK_INT >= 26) builder.setTimeoutAfter((expires - now).coerceAtLeast(1))
-        builder.setWhen(card.countdownTo).setUsesChronometer(true).setChronometerCountDown(true)
+        // The same system-owned timer feeds the collapsed chip and expanded card.
+        // A shortCriticalText such as "14分上课" is a snapshot, not a live timer;
+        // it takes precedence over the chip's chronometer and can stay stale if
+        // background cosmetic refreshes are delayed while the phone is idle.
+        builder.setWhen(card.countdownTo).setShowWhen(true)
+            .setUsesChronometer(true).setChronometerCountDown(true)
         if (Build.VERSION.SDK_INT >= 36) {
             // A system template preserves promotion eligibility. Never use custom RemoteViews.
             val segments = mutableListOf<Notification.ProgressStyle.Segment>()
@@ -78,7 +83,7 @@ object LiveUpdateNotification {
             if (card.preparationEnd > 0) style.addProgressPoint(
                 Notification.ProgressStyle.Point(card.preparationEnd).setColor(PURPLE))
             // System text colors keep times readable in both light and dark/OEM cards.
-            builder.setStyle(style).setShortCriticalText(card.critical)
+            builder.setStyle(style)
             builder.extras.putBoolean(REQUEST_PROMOTED_ONGOING, true)
         } else {
             builder.setStyle(Notification.BigTextStyle().bigText(card.expandedText))
