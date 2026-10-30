@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.net.Uri
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -155,6 +156,71 @@ object CourseScheduler {
         }
     }
 
+    private const val BOUNDARY_ACTION = "com.kitty191.schedule.COURSE_BOUNDARY"
+    private fun boundaryIntent(context: Context, at: Long) = PendingIntent.getBroadcast(
+        context, 1012, Intent(context, CourseAlarmReceiver::class.java).apply {
+            action = BOUNDARY_ACTION
+            data = Uri.parse("schedule://boundary/$at")
+            putExtra("scheduledAt", at)
+        }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    private fun scheduleBoundaries(context: Context, times: List<Long>) {
+        val preferences = prefs(context)
+        val old = preferences.getStringSet("wakeTimes", emptySet()).orEmpty()
+        val desired = times.map { it.toString() }.toSet()
+        // Save identities before registering, so a killed process cannot leave
+        // untracked alarms behind. Re-register all desired alarms on restore:
+        // persisted identities alone do not prove the OS still has the alarms.
+        check(preferences.edit().putStringSet("wakeTimes", old + desired).commit())
+        val manager = context.getSystemService(AlarmManager::class.java)
+        for (at in times) {
+            val pending = boundaryIntent(context, at)
+            try {
+                if (Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms()) {
+                    manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+                } else manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+            } catch (_: SecurityException) {
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+            }
+        }
+        // Add replacements before removing stale ones. Editing/deleting courses,
+        // changing times, and disabling reminders cannot leave old wakeups alive.
+        for (value in old - desired) value.toLongOrNull()?.let {
+            val pending = boundaryIntent(context, it)
+            manager.cancel(pending)
+            pending.cancel()
+        }
+        check(preferences.edit().putStringSet("wakeTimes", desired).commit())
+    }
+
+    fun receiveAlarm(context: Context, intent: Intent) {
+        if (intent.action == BOUNDARY_ACTION) {
+            // Persist a receipt separately from UI/onResume refreshes. Opening
+            // the app must never make a missed background alarm look delivered.
+            check(prefs(context).edit()
+                .putLong("lastBackgroundWakeAt", System.currentTimeMillis())
+                .putLong("lastBackgroundScheduledAt", intent.getLongExtra("scheduledAt", 0))
+                .commit())
+        }
+        refresh(context)
+    }
+
+    fun backgroundStatus(context: Context): Map<String, Any> {
+        val preferences = prefs(context)
+        return mutableMapOf<String, Any>().apply {
+            val times = preferences.getStringSet("wakeTimes", emptySet()).orEmpty()
+                .mapNotNull { it.toLongOrNull() }.filter { it > System.currentTimeMillis() }
+            // These are registrations, not proof of future delivery by ColorOS.
+            put("scheduledBoundaryCount", times.size)
+            times.minOrNull()?.let { put("nextBackgroundAt", it) }
+            if (preferences.contains("lastBackgroundWakeAt")) {
+                put("lastBackgroundWakeAt", preferences.getLong("lastBackgroundWakeAt", 0))
+                put("lastBackgroundScheduledAt", preferences.getLong("lastBackgroundScheduledAt", 0))
+            }
+        }
+    }
+
     fun refresh(context: Context) {
         val preferences = prefs(context)
         val now = System.currentTimeMillis()
@@ -164,7 +230,7 @@ object CourseScheduler {
         val announced = preferences.getStringSet("endingAnnouncedKeys", emptySet()).orEmpty().toMutableSet()
         preferences.getString("endingAnnounced", null)?.let { announced.add(it) }
         val newEnding = plan.active?.let { it.phase(now) == CoursePhase.ENDING_SOON && it.endingKey !in announced } == true
-        var next = plan.nextWake
+        var wakeTimes = plan.wakeTimes
         var nextRefresh = plan.nextRefresh
         if (preview != null && previewUntil > now && !newEnding) {
             val value = JSONObject(preview)
@@ -185,7 +251,7 @@ object CourseScheduler {
                 weekStart = preferences.getInt("weekStart", 1), preview = true, now = now)
             if (posted) preferences.edit().putBoolean("previewAnnounced", true).apply()
             // A test preview must not remove a real class's pending ending alarm.
-            next = plan.nextWake?.let { minOf(it, previewUntil) } ?: previewUntil
+            wakeTimes = (wakeTimes + previewUntil).distinct().sorted().take(64)
             nextRefresh = minOf(now + 60_000L, if (now < occurrence.start) occurrence.start else previewUntil)
         } else {
             if (preview != null) preferences.edit().remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt").remove("previewAnnounced").apply()
@@ -207,22 +273,13 @@ object CourseScheduler {
             }
         }
         val manager = context.getSystemService(AlarmManager::class.java)
-        val pending = alarmIntent(context)
-        manager.cancel(pending)
+        // Migrate the old single, chained alarm. Every upcoming boundary now
+        // has its own system PendingIntent and is registered before leaving UI.
+        manager.cancel(alarmIntent(context))
         val cosmetic = alarmIntent(context, refresh = true)
         manager.cancel(cosmetic)
-        if (next != null) {
-            try {
-                if (Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms()) {
-                    manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pending)
-                } else {
-                    manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pending)
-                }
-            } catch (_: SecurityException) {
-                // Permission can change between canScheduleExactAlarms and scheduling.
-                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pending)
-            }
-        }
+        scheduleBoundaries(context, wakeTimes)
+        val next = wakeTimes.firstOrNull()
         // A minute refresh at the same instant as a reminder boundary can overwrite
         // its fresh alert with a quiet update before SystemUI has displayed it.
         val cosmeticAt = nextRefresh?.takeIf { refresh -> next?.let { refresh < it } ?: true }
@@ -243,7 +300,7 @@ object CourseScheduler {
 
 class CourseAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        CourseScheduler.refresh(context)
+        CourseScheduler.receiveAlarm(context, intent)
     }
 }
 

@@ -26,7 +26,7 @@ data class CourseOccurrence(val course: CourseSpec, val start: Long, val end: Lo
 }
 
 data class CoursePlan(val active: CourseOccurrence?, val nextWake: Long?, val nextRefresh: Long? = null,
-    val nextEndingAt: Long? = null)
+    val nextEndingAt: Long? = null, val wakeTimes: List<Long> = listOfNotNull(nextWake))
 
 object CoursePlanner {
     fun plan(
@@ -75,12 +75,12 @@ object CoursePlanner {
         val active = activeEnding ?: regular.firstOrNull { now >= it.start - lead(it) && now < it.end }
         // Only reminder boundaries use wake-up alarms. Cosmetic minute refreshes
         // and progress updates must not consume allow-while-idle quota.
-        val boundaries = (regular.flatMap { listOf(it.start - lead(it), it.end) } +
+        val boundaries = (regular.flatMap { listOf(it.start - lead(it), it.start, it.end) } +
             endings.flatMap { listOfNotNull(it.endingReminderAt, it.end) })
-            .filter { it > now }
-        val wake = boundaries.minOrNull()
+            .filter { it > now }.distinct().sorted().take(64)
+        val wake = boundaries.firstOrNull()
         val refresh = active?.let { minOf(now + 60_000L, if (now < it.start) it.start else it.end) }
         val nextEnding = endings.mapNotNull { it.endingReminderAt }.filter { it > now }.minOrNull()
-        return CoursePlan(active, wake, refresh, nextEnding)
+        return CoursePlan(active, wake, refresh, nextEnding, boundaries)
     }
 }

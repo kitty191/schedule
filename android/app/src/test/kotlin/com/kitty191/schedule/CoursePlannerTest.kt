@@ -110,7 +110,7 @@ class CoursePlannerTest {
     @Test fun cosmeticRefreshDoesNotConsumeReminderWakeBoundary() {
         val before = plan(time(29,8,25))
         assertEquals(time(29,8,26), before.nextRefresh)
-        assertEquals(time(29,9,50), before.nextWake)
+        assertEquals(time(29,8,30), before.nextWake)
         val started = plan(time(29,8,30))
         assertEquals(time(29,8,31), started.nextRefresh)
         assertEquals(time(29,9,50), started.nextWake)
@@ -182,7 +182,8 @@ class CoursePlannerTest {
         val monday = course.copy(weekday = 1, startMinute = 5, endMinute = 45)
         val result = CoursePlanner.plan(listOf(monday),time(25,0,5),1440,zone = zone,endingLeadMinutes = 1)
         assertEquals(time(26,0,5), result.active!!.start)
-        assertEquals(time(26,0,44), result.nextWake)
+        assertEquals(time(26,0,5), result.nextWake)
+        assertTrue(result.wakeTimes.contains(time(26,0,44)))
     }
     @Test fun invalidGlobalReminderTimesAreRejected() {
         for (bad in listOf(0,-1,1441)) {

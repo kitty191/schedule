@@ -219,7 +219,7 @@ class CourseSchedulerTest {
     @Test fun missingExactPermissionStillSchedulesAWakeupAndReportsTheLimitation() {
         ShadowAlarmManager.setCanScheduleExactAlarms(false)
         configure()
-        val first = shadowOf(alarms).scheduledAlarms.single()
+        val first = shadowOf(alarms).scheduledAlarms.minBy { it.triggerAtTime }
         assertEquals(AlarmManager.RTC_WAKEUP, first.type)
         assertNotEquals(ShadowAlarmManager.WINDOW_EXACT, first.windowLengthMs)
         assertEquals(false, LiveUpdateNotification.status(context)["exactAllowed"])
@@ -306,5 +306,102 @@ class CourseSchedulerTest {
         assertEquals("快下课 · 大学物理", notifications.activeNotifications.single().notification.extras
             .getCharSequence(Notification.EXTRA_TITLE).toString())
         assertTrue(preferences.getStringSet("dismissedEndingKeys",emptySet()).orEmpty().isEmpty())
+    }
+
+    @Test @Config(sdk = [36,37]) fun endingIsAlreadyRegisteredAndRunsEvenIfEveryEarlierAlarmWasMissed() {
+        configure()
+        assertEquals(listOf(at(7,50), at(8,0), at(9,15), at(9,25)),
+            shadowOf(alarms).scheduledAlarms.map { it.triggerAtTime }.sorted())
+        // No Activity/Flutter engine and no earlier broadcast are run. A new
+        // receiver obtains the course exclusively from persisted preferences.
+        deliverAt(9,15)
+        assertEquals("快下课 · 大学物理", notifications.activeNotifications.single().notification.extras
+            .getCharSequence(Notification.EXTRA_TITLE).toString())
+        assertEquals(at(9,15), CourseScheduler.backgroundStatus(context)["lastBackgroundWakeAt"])
+        assertEquals(at(9,15), CourseScheduler.backgroundStatus(context)["lastBackgroundScheduledAt"])
+    }
+
+    @Test fun theNextCourseIsRegisteredEvenIfThePreviousCourseNeverRan() {
+        val later = course().toMutableMap().apply {
+            put("id", 2); put("name", "下午课程"); put("startMinute", 840); put("endMinute", 900)
+            put("occurrences", listOf(mapOf("start" to at(14,0), "end" to at(15,0))))
+        }
+        CourseScheduler.configure(context, mapOf("enabled" to true, "courses" to listOf(course(), later)))
+        deliverAt(13,50)
+        assertTrue(notifications.activeNotifications.single().notification.extras
+            .getCharSequence(Notification.EXTRA_TEXT).toString().contains("下午课程"))
+        assertEquals(at(14,0), notifications.activeNotifications.single().notification.`when`)
+    }
+
+    @Test fun openingTheAppCannotFabricateABackgroundDeliveryReceipt() {
+        configure()
+        advanceTo(9,16)
+        CourseScheduler.refresh(context)
+        assertFalse(CourseScheduler.backgroundStatus(context).containsKey("lastBackgroundWakeAt"))
+        assertEquals(true, CourseScheduler.endingStatus(context)["lastEndingPosted"])
+    }
+
+    @Test fun lateBroadcastRecordsTheOriginalDueTimeSeparatelyFromArrival() {
+        configure()
+        val pending = shadowOf(alarms).scheduledAlarms.first { it.triggerAtTime == at(9,15) }.operation!!
+        advanceTo(9,17)
+        pending.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(at(9,15), CourseScheduler.backgroundStatus(context)["lastBackgroundScheduledAt"])
+        assertEquals(at(9,17), CourseScheduler.backgroundStatus(context)["lastBackgroundWakeAt"])
+    }
+
+    @Test fun changingLeadAndDeletingCoursesRemovePreviouslyRegisteredBoundaries() {
+        configure()
+        configure(endingLead = 7)
+        val times = shadowOf(alarms).scheduledAlarms.map { it.triggerAtTime }
+        assertFalse(times.contains(at(9,15)))
+        assertTrue(times.contains(at(9,18)))
+        assertEquals(times.size, times.toSet().size)
+        CourseScheduler.configure(context, mapOf("enabled" to true, "courses" to emptyList<Any>()))
+        assertTrue(shadowOf(alarms).scheduledAlarms.isEmpty())
+        assertEquals(0, CourseScheduler.backgroundStatus(context)["scheduledBoundaryCount"])
+    }
+
+    @Test fun rebootReRegistersPersistedAlarmsEvenIfTheSystemLostItsQueue() {
+        configure()
+        val before = shadowOf(alarms).scheduledAlarms.toList()
+        before.forEach { alarms.cancel(it.operation!!) }
+        assertTrue(shadowOf(alarms).scheduledAlarms.isEmpty())
+        ScheduleRestoreReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
+        assertEquals(before.map { it.triggerAtTime }.sorted(),
+            shadowOf(alarms).scheduledAlarms.map { it.triggerAtTime }.sorted())
+        deliverAt(9,15)
+        assertEquals(true, CourseScheduler.endingStatus(context)["lastEndingPosted"])
+    }
+
+    @Test fun largeImportUsesABoundedQueueAndReplenishesItAfterDelivery() {
+        val many = course().toMutableMap().apply {
+            put("occurrences", (0..100).map { offset -> mapOf(
+                "start" to at(8,0) + offset * 86_400_000L,
+                "end" to at(9,25) + offset * 86_400_000L) })
+        }
+        CourseScheduler.configure(context, mapOf("enabled" to true, "courses" to listOf(many)))
+        val before = shadowOf(alarms).scheduledAlarms.filter { it.type == AlarmManager.RTC_WAKEUP }
+        assertEquals(64, before.size)
+        deliverAt(7,50)
+        val after = shadowOf(alarms).scheduledAlarms.filter { it.type == AlarmManager.RTC_WAKEUP }
+        assertEquals(64, after.size)
+        assertTrue(after.maxOf { it.triggerAtTime } > before.maxOf { it.triggerAtTime })
+    }
+
+    @Test fun overdueAlarmsDeliveredTogetherDoNotQuietlyOverwriteTheFreshEndingAlert() {
+        configure()
+        val start = shadowOf(alarms).scheduledAlarms.first { it.triggerAtTime == at(8,0) }.operation!!
+        val ending = shadowOf(alarms).scheduledAlarms.first { it.triggerAtTime == at(9,15) }.operation!!
+        advanceTo(9,15)
+        // Both broadcasts are queued before either one cancels expired alarms.
+        start.send()
+        ending.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        val notification = notifications.activeNotifications.single().notification
+        assertEquals("快下课 · 大学物理", notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
+        assertEquals(0, notification.flags and Notification.FLAG_ONLY_ALERT_ONCE)
+        assertEquals(1, preferences.getStringSet("endingAnnouncedKeys", emptySet()).orEmpty().size)
     }
 }

@@ -1,6 +1,8 @@
 package com.kitty191.schedule
 
 import android.Manifest
+import android.app.ActivityManager
+import android.os.PowerManager
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -12,11 +14,13 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
+import org.json.JSONArray
 
 object LiveUpdateNotification {
     internal const val DISMISSAL_KEY = "com.kitty191.schedule.dismissalKey"
     internal const val ENDING_PHASE = "com.kitty191.schedule.endingPhase"
     internal const val PREVIEW_UNTIL = "com.kitty191.schedule.previewUntil"
+    private const val CARD_STATE = "com.kitty191.schedule.cardState"
     // Keep the channel ID and package ID from the successful device test.
     private const val CHANNEL_ID = "island_test_live_updates"
     private const val NOTIFICATION_ID = 1001
@@ -55,11 +59,22 @@ object LiveUpdateNotification {
         val notificationId = if (card.endingSoon) ENDING_NOTIFICATION_ID else NOTIFICATION_ID
         ensureChannels(context)
         if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(channelId)?.importance == NotificationManager.IMPORTANCE_NONE) return false
+        val state = JSONArray(listOf(card.headline, card.detail, card.metadata, card.expandedText,
+            card.countdownTo, card.progress, card.preparationEnd, card.endingSoon,
+            occurrence.key, expires, preview)).toString()
+        // Several overdue alarms may arrive in one batch after background delay.
+        // Do not overwrite an identical fresh alert with a quiet notification.
+        if (!alert && manager.activeNotifications.any {
+                it.id == notificationId && it.notification.extras.getString(CARD_STATE) == state &&
+                    (Build.VERSION.SDK_INT < 36 || it.notification.shortCriticalText == null)
+            }) return true
         // The ending boundary is a new attention event, not a quiet edit of a
         // notification that may already have been dismissed or demoted by the OEM.
         if (card.endingSoon && alert) manager.cancel(ENDING_NOTIFICATION_ID)
         try {
-            manager.notify(notificationId, buildNotification(context, card, expires, now, alert, occurrence, preview))
+            val notification = buildNotification(context, card, expires, now, alert, occurrence, preview)
+            notification.extras.putString(CARD_STATE, state)
+            manager.notify(notificationId, notification)
         } catch (_: SecurityException) { return false }
         manager.cancel(if (card.endingSoon) NOTIFICATION_ID else ENDING_NOTIFICATION_ID)
         return true
@@ -154,6 +169,8 @@ object LiveUpdateNotification {
         val channelEnabled = Build.VERSION.SDK_INT < 26 || manager.getNotificationChannel(CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
         val endingChannelEnabled = Build.VERSION.SDK_INT < 26 || manager.getNotificationChannel(ENDING_CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
         return mapOf(
+            "batteryOptimizationIgnored" to context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName),
+            "backgroundRestricted" to (Build.VERSION.SDK_INT >= 28 && context.getSystemService(ActivityManager::class.java).isBackgroundRestricted),
             "supported" to supported,
             "notificationsEnabled" to (permission && manager.areNotificationsEnabled() && channelEnabled),
             "promotionAllowed" to (supported && manager.canPostPromotedNotifications()),
@@ -163,6 +180,6 @@ object LiveUpdateNotification {
             "endingNotificationsEnabled" to (permission && manager.areNotificationsEnabled() && endingChannelEnabled),
             "endingBannerEnabled" to (Build.VERSION.SDK_INT < 26 ||
                 (manager.getNotificationChannel(ENDING_CHANNEL_ID)?.importance ?: NotificationManager.IMPORTANCE_HIGH) >= NotificationManager.IMPORTANCE_HIGH),
-        ) + CourseScheduler.endingStatus(context)
+        ) + CourseScheduler.endingStatus(context) + CourseScheduler.backgroundStatus(context)
     }
 }

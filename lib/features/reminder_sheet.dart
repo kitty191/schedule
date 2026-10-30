@@ -304,6 +304,80 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                             ),
                       child: const Text('允许准时提醒'),
                     ),
+                  if (_android) ...[
+                    WhiteCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '后台提醒',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                          const MutedText(
+                            '保存课表时会提前安排多次系统提醒，无需一直打开应用。OPPO / ColorOS 请在应用信息的耗电或电池管理中允许后台活动、自启动（若提供），并在最近任务中锁定本应用，避免被一键清理。菜单名称可能因系统版本而异。',
+                          ),
+                          if (_status != null) ...[
+                            _row(
+                              '系统后台限制',
+                              _status!.backgroundRestricted
+                                  ? '受限制，请允许后台运行'
+                                  : '未报告限制',
+                            ),
+                            _row(
+                              '电池优化',
+                              _status!.batteryOptimizationIgnored
+                                  ? '已豁免'
+                                  : '未豁免，可能影响后台提醒',
+                            ),
+                            _row(
+                              '已登记提醒时点',
+                              '${_status!.scheduledBoundaryCount} 个',
+                            ),
+                            if (_status!.nextBackgroundAt != null)
+                              _row(
+                                '下次后台唤醒',
+                                _reminderTime(_status!.nextBackgroundAt!),
+                              ),
+                            _row(
+                              '最近后台触发',
+                              _status!.lastBackgroundWakeAt == null
+                                  ? '尚未收到系统闹钟回调'
+                                  : '${_reminderTime(_status!.lastBackgroundWakeAt!)}'
+                                        '\n计划 ${_status!.lastBackgroundScheduledAt == null ? '未知' : _reminderTime(_status!.lastBackgroundScheduledAt!)}',
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          const MutedText(
+                            '这些状态无法读取 ColorOS 的全部清理策略；已登记不代表系统一定会放行。若只有打开 App 才出现提醒，请查看“最近后台触发”是否仍停留在之前的时间。强行停止后，系统会撤销闹钟和通知，需重新打开应用才能恢复。',
+                          ),
+                          CupertinoButton(
+                            key: const Key('background-settings'),
+                            onPressed: _busy
+                                ? null
+                                : () => _run(
+                                    () => ref
+                                        .read(bridgeProvider)
+                                        .openBackgroundSettings(),
+                                  ),
+                            child: const Text('打开后台运行设置'),
+                          ),
+                          CupertinoButton(
+                            key: const Key('battery-settings'),
+                            onPressed: _busy
+                                ? null
+                                : () => _run(
+                                    () => ref
+                                        .read(bridgeProvider)
+                                        .openBatterySettings(),
+                                  ),
+                            child: const Text('打开电池优化设置'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   const Padding(
                     padding: EdgeInsets.fromLTRB(8, 0, 8, 20),
                     child: MutedText(

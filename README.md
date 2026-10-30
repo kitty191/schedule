@@ -1,6 +1,6 @@
 # 今天课程
 
-1.0.4 修复下课前没有提示的问题：课前云收起后仍保留下课提醒，到期新发“快下课”提示，并提供实际触发记录。[下载新版 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.4/downloads/today-courses-v1.0.4-arm64.apk) · [下课提醒审查与验证](docs/ENDING_REMINDER_FIX.md)
+1.0.5 提前登记多个独立的系统提醒，减少一次后台回调被拦截对后续上下课提示的影响；新增后台运行设置入口和真实后台触发记录。[下载新版 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.5/downloads/today-courses-v1.0.5-arm64.apk) · [后台提醒审查与真机核对](docs/BACKGROUND_REMINDERS.md)
 
 已保留课程底部编辑面板和提醒设置下拉关闭。[操作说明](docs/COURSE_SHEET_EXPERIMENT.md)
 
@@ -65,7 +65,7 @@ Android 使用 AlarmManager 调度，原生存储保存完整日期，重启、�
 
 iOS 15+ 使用普通本地通知，优先安排最近 60 次提醒，并在重新打开/回到应用时续排；未接入 ActivityKit。iOS 原生代码需要 macOS / Xcode 编译和真机验证，Linux 云环境尚未验证。
 
-[下载 1.0.4 ARM64 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.4/downloads/today-courses-v1.0.4-arm64.apk)。版本号为 1.0.4（15）。与之前版本保持包名 `com.kitty191.schedule` 和同一开发签名，可直接覆盖安装。SQLite 从旧版升到 v4，会保留已有课程、导入日期、课表高度、学期和提醒设置，新增下课提前量默认 10 分钟。当前签名用于测试，尚未配置商店发布签名。
+[下载 1.0.5 ARM64 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.5/downloads/today-courses-v1.0.5-arm64.apk)。版本号为 1.0.5（16）。与之前版本保持包名 `com.kitty191.schedule` 和同一开发签名，可直接覆盖安装。SQLite 从旧版升到 v4，会保留已有课程、导入日期、课表高度、学期和提醒设置，新增下课提前量默认 10 分钟。当前签名用于测试，尚未配置商店发布签名。
 
 真机步骤：安装 → 我的 → 导入课表 → 选择 `.ics` → 核对预览 → 确认导入 → 课表查看对应周。再到“我的 → 提醒设置”主动开启通知、顶部提醒和准时提醒权限，可通过“发送课程预览”立即检查上岛。
 

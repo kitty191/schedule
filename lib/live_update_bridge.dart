@@ -14,6 +14,12 @@ class LiveUpdateStatus {
     this.lastEndingAt,
     this.lastEndingCourse,
     this.lastEndingPosted,
+    this.batteryOptimizationIgnored = false,
+    this.backgroundRestricted = false,
+    this.scheduledBoundaryCount = 0,
+    this.nextBackgroundAt,
+    this.lastBackgroundWakeAt,
+    this.lastBackgroundScheduledAt,
   });
 
   factory LiveUpdateStatus.fromMap(Map<Object?, Object?> value) =>
@@ -31,6 +37,14 @@ class LiveUpdateStatus {
         lastEndingAt: (value['lastEndingAt'] as num?)?.toInt(),
         lastEndingCourse: value['lastEndingCourse'] as String?,
         lastEndingPosted: value['lastEndingPosted'] as bool?,
+        batteryOptimizationIgnored: value['batteryOptimizationIgnored'] == true,
+        backgroundRestricted: value['backgroundRestricted'] == true,
+        scheduledBoundaryCount:
+            (value['scheduledBoundaryCount'] as num?)?.toInt() ?? 0,
+        nextBackgroundAt: (value['nextBackgroundAt'] as num?)?.toInt(),
+        lastBackgroundWakeAt: (value['lastBackgroundWakeAt'] as num?)?.toInt(),
+        lastBackgroundScheduledAt: (value['lastBackgroundScheduledAt'] as num?)
+            ?.toInt(),
       );
 
   final bool supported;
@@ -44,6 +58,9 @@ class LiveUpdateStatus {
   final int? nextEndingAt, lastEndingAt;
   final String? lastEndingCourse;
   final bool? lastEndingPosted;
+  final bool batteryOptimizationIgnored, backgroundRestricted;
+  final int scheduledBoundaryCount;
+  final int? nextBackgroundAt, lastBackgroundWakeAt, lastBackgroundScheduledAt;
 }
 
 class LiveUpdateBridge {
@@ -59,6 +76,10 @@ class LiveUpdateBridge {
       _invoke('previewEnding', course);
   Future<LiveUpdateStatus> stop() => _invoke('stop');
   Future<void> openSettings() => channel.invokeMethod<void>('settings');
+  Future<void> openBackgroundSettings() =>
+      channel.invokeMethod<void>('backgroundSettings');
+  Future<void> openBatterySettings() =>
+      channel.invokeMethod<void>('batterySettings');
   Future<void> openExactSettings() =>
       channel.invokeMethod<void>('exactSettings');
 
