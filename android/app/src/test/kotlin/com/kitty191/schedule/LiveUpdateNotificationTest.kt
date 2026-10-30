@@ -62,7 +62,7 @@ class LiveUpdateNotificationTest {
         assertTrue(notification.extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN))
         assertNull(notification.shortCriticalText)
         assertTrue(notification.extras.getBoolean(Notification.EXTRA_SHOW_WHEN))
-        assertEquals(95 * 60_000L, notification.timeoutAfter)
+        assertEquals(5 * 60_000L, notification.timeoutAfter)
         assertTrue(notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString().contains("大学英语 · B402"))
     }
     @Test fun cosmeticsStaySilentAndOnlyTheEndingTransitionCanAlertAgain() {
@@ -182,8 +182,38 @@ class LiveUpdateNotificationTest {
             assertTrue(notification.extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER))
             assertTrue(notification.extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN))
             assertEquals(if (at < start) start else instance.end, notification.`when`)
-            assertEquals(instance.end - at, notification.timeoutAfter)
+            assertEquals((if (at < start) start else instance.end) - at, notification.timeoutAfter)
         }
+    }
+
+    @Test @Config(sdk = [26, 36, 37]) fun preClassExpiryMatchesTheTimerEvenWithoutAnyBoundaryCallback() {
+        val start = now + 8 * 60_000
+        val instance = CourseOccurrence(course, start, start + 85 * 60_000)
+        // A minute refresh must keep the absolute expiry fixed at the start.
+        // No scheduler callback runs at start or in the eight minutes afterwards.
+        for (at in listOf(now, start - 30_000, start - 1)) {
+            val card = CourseLiveCard.create(course, instance, at, 10)
+            val posted = LiveUpdateNotification.buildNotification(
+                RuntimeEnvironment.getApplication(), card, instance.end, at)
+            assertEquals(start, at + posted.timeoutAfter)
+            assertEquals(start, posted.`when`)
+            assertTrue(at + posted.timeoutAfter < start + 8 * 60_000)
+        }
+        // Short previews still expire first, even when the class starts later.
+        val card = CourseLiveCard.create(course, instance, now, 10, preview = true)
+        val preview = LiveUpdateNotification.buildNotification(
+            RuntimeEnvironment.getApplication(), card, now + 60_000, now, preview = true)
+        assertEquals(60_000, preview.timeoutAfter)
+    }
+
+    @Test fun expiredCourseAndExpiredPreviewCannotPostAZeroTimer() {
+        val application = RuntimeEnvironment.getApplication()
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val expired = CourseOccurrence(course, now - 90 * 60_000, now)
+        assertFalse(LiveUpdateNotification.show(application, course, expired, expired.end, now = now))
+        val future = CourseOccurrence(course, now + 10 * 60_000, now + 100 * 60_000)
+        assertFalse(LiveUpdateNotification.show(application, course, future, now - 1, preview = true, now = now))
+        assertTrue(application.getSystemService(NotificationManager::class.java).activeNotifications.isEmpty())
     }
 
     @Test fun updatingAnOldPinnedReminderRemovesTheStaleChipText() {

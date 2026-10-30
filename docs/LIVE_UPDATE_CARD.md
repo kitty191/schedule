@@ -1,4 +1,6 @@
-# 1.0.4 流体云进度提醒
+# 1.0.6 流体云进度提醒
+
+1.0.6 补充计时终点的系统到期保护和独立课中通知，修复上课时点后旧课前云可能长时间停在 `00:00` 的问题；[详见到零审查](COUNTDOWN_BOUNDARY_FIX.md)。保留 1.0.5 的[独立后台排程](BACKGROUND_REMINDERS.md)。
 
 新版继续沿用原包名和公开 Android Live Updates 接口，保留原普通提醒分类。1.0.4 将下课前阶段改为独立提示分类和通知 ID，修复收起普通云后漏掉下课提示；[详见后台审查](ENDING_REMINDER_FIX.md)。
 
@@ -35,7 +37,7 @@ Android 24–35 保留普通持续通知，展开提供完整文字和普通进�
 
 ## 真机查看
 
-1. 安装 [1.0.4 ARM64 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.4/downloads/today-courses-v1.0.4-arm64.apk)，可覆盖原版 1.0.1 / 1.0.2，保留课程和设置。
+1. 安装 [1.0.6 ARM64 APK](https://github.com/kitty191/schedule/raw/refs/heads/builds/android-v1.0.6/downloads/today-courses-v1.0.6-arm64.apk)，可覆盖之前正式测试版，保留课程和设置。
 2. 打开“我的 → 提醒设置”，检查通知和顶部实时提醒权限。
 3. 点“发送课程预览”后回到桌面，先不要点开流体云，观察至少 1–2 分钟并对照手机时钟；确认收起数字继续减少后再展开，核对剩余时间。下课预览同样先保持收起，检查倒计时及自动撤下。
 4. 检查真实课程在所设的课前、下课前边界切换，并在下课时撤下。

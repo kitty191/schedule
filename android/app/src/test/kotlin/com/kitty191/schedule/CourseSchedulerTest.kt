@@ -404,4 +404,54 @@ class CourseSchedulerTest {
         assertEquals(0, notification.flags and Notification.FLAG_ONLY_ALERT_ONCE)
         assertEquals(1, preferences.getStringSet("endingAnnouncedKeys", emptySet()).orEmpty().size)
     }
+
+    @Test @Config(sdk = [36,37]) fun classStartReplacesTheExpiredPreClassCardWithAnIndependentCountdown() {
+        configure()
+        deliverAt(7,50)
+        val before = notifications.activeNotifications.single()
+        assertEquals(at(8,0), at(7,50) + before.notification.timeoutAfter)
+        deliverAt(8,0)
+        val during = notifications.activeNotifications.single()
+        assertNotEquals(before.id, during.id)
+        assertEquals(at(9,25), during.notification.`when`)
+        assertEquals(at(9,25), at(8,0) + during.notification.timeoutAfter)
+        assertTrue(during.notification.extras.getCharSequence(Notification.EXTRA_SUB_TEXT).toString().contains("上课中"))
+        assertEquals(true, LiveUpdateNotification.status(context)["active"])
+        // The old pre-class notification ID can expire late without removing
+        // the new in-class card (the framework timeout is owned by SystemUI/NMS).
+        notifications.cancel(before.id)
+        assertEquals(during.id, notifications.activeNotifications.single().id)
+        deliverAt(9,15)
+        val ending = notifications.activeNotifications.single()
+        assertNotEquals(during.id, ending.id)
+        assertEquals(at(9,25), ending.notification.`when`)
+        deliverAt(9,25)
+        assertTrue(notifications.activeNotifications.isEmpty())
+    }
+
+    @Test fun aDelayedStartCallbackUsesTheRealEndTimeRatherThanExtendingTheCourse() {
+        configure()
+        deliverAt(7,50)
+        val preClass = notifications.activeNotifications.single()
+        val start = shadowOf(alarms).scheduledAlarms.first { it.triggerAtTime == at(8,0) }.operation!!
+        advanceTo(8,8)
+        start.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        val during = notifications.activeNotifications.single()
+        assertNotEquals(preClass.id, during.id)
+        assertEquals(at(9,25), during.notification.`when`)
+        assertEquals(77 * 60_000L, during.notification.timeoutAfter)
+        CourseScheduler.configure(context, mapOf("enabled" to false, "courses" to emptyList<Any>()))
+        assertTrue(notifications.activeNotifications.isEmpty())
+    }
+
+    @Test fun aCallbackArrivingAfterClassEndCannotBringBackTheExpiredReminder() {
+        configure()
+        deliverAt(7,50)
+        val start = shadowOf(alarms).scheduledAlarms.first { it.triggerAtTime == at(8,0) }.operation!!
+        advanceTo(9,30)
+        start.send()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(notifications.activeNotifications.isEmpty())
+    }
 }
