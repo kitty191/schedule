@@ -35,6 +35,9 @@ class CourseLiveCardTest {
         assertTrue(started.metadata.startsWith("上课中"))
         assertEquals(occurrence.end, started.countdownTo)
         val ending = card(time(29,9,50))
+        assertEquals("快下课 · 大学英语", ending.headline)
+        assertEquals("10:00 下课 · 东校区综合楼 B402", ending.detail)
+        assertTrue(ending.endingSoon)
         assertEquals(occurrence.end, ending.countdownTo)
         assertTrue(ending.metadata.startsWith("快下课"))
         assertEquals(900, ending.progress)
@@ -109,7 +112,7 @@ class CourseLiveCardTest {
             val card = CourseLiveCard.create(course, preview, now, 7, preview = true, zone = zone)
             assertTrue(card.metadata.startsWith("预览 · 快下课"))
             assertEquals(now + lead * 60_000L, card.countdownTo)
-            if (lead == 1440) assertTrue(card.headline.contains("次日"))
+            if (lead == 1440) assertTrue(card.detail.contains("次日"))
         }
     }
 }

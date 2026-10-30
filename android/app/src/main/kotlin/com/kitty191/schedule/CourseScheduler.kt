@@ -2,6 +2,7 @@ package com.kitty191.schedule
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,6 +12,9 @@ import org.json.JSONObject
 
 object CourseScheduler {
     private fun prefs(context: Context) = context.getSharedPreferences("course_reminders", Context.MODE_PRIVATE)
+    private fun recentKeys(keys: Set<String>, now: Long) = keys.filter {
+        (it.substringAfter(':').substringBefore(':').toLongOrNull() ?: 0) > now - 24 * 60 * 60_000L
+    }.toMutableSet()
     private fun alarmIntent(context: Context, refresh: Boolean = false) = PendingIntent.getBroadcast(
         context, if (refresh) 1011 else 1010, Intent(context, CourseAlarmReceiver::class.java),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
@@ -58,8 +62,11 @@ object CourseScheduler {
             .putInt("endingLead", endingLead)
             .putInt("weekStart", weekStart)
             .putString("semesterStart", data["semesterStart"] as? String)
-            .remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt")
+            .remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt").remove("previewAnnounced")
             .commit()) { "系统提醒配置未能保存，请重试。" }
+        // Create the ending category before its first alert so users can inspect
+        // and allow its banner in system settings in advance.
+        LiveUpdateNotification.ensureChannels(context)
         refresh(context)
     }
 
@@ -75,37 +82,77 @@ object CourseScheduler {
             .putLong("previewUntil", until)
             .putLong("previewStartAt", occurrence.start)
             .putLong("previewEndAt", occurrence.end)
+            .putBoolean("previewAnnounced", false)
             .commit())
         refresh(context)
     }
 
-    fun stop(context: Context) {
+    fun stop(context: Context, targetKey: String? = null, targetEnding: Boolean? = null,
+        targetPreviewUntil: Long? = null) {
         val preferences = prefs(context)
-        val isPreview = preferences.getLong("previewUntil", 0) > System.currentTimeMillis()
-        val occurrence = currentPlan(context).active
-        val edit = preferences.edit().remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt")
-        if (!isPreview && occurrence != null) {
-            val oldest = System.currentTimeMillis() - 24 * 60 * 60_000L
-            val dismissed = preferences.getStringSet("dismissedKeys", emptySet()).orEmpty()
-                .filter { (it.substringAfter(':').toLongOrNull() ?: 0) > oldest }.toMutableSet()
-            preferences.getString("dismissed", null)?.let { dismissed.add(it) }
-            dismissed.add(occurrence.key)
-            edit.putStringSet("dismissedKeys", dismissed).remove("dismissed")
+        val now = System.currentTimeMillis()
+        val visible = context.getSystemService(NotificationManager::class.java).activeNotifications
+            .firstOrNull { it.notification.extras.containsKey(LiveUpdateNotification.DISMISSAL_KEY) }?.notification?.extras
+        val visibleKey = visible?.getString(LiveUpdateNotification.DISMISSAL_KEY)
+        if (targetKey == null && visibleKey != null) {
+            // The displayed card can differ from a newly calculated priority at
+            // a boundary or when several classes overlap. Close the visible one.
+            stop(context, visibleKey, visible.getBoolean(LiveUpdateNotification.ENDING_PHASE),
+                if (visible.containsKey(LiveUpdateNotification.PREVIEW_UNTIL)) visible.getLong(LiveUpdateNotification.PREVIEW_UNTIL) else null)
+            return
+        }
+        val isPreview = preferences.getLong("previewUntil", 0) > now
+        if (targetPreviewUntil != null && preferences.getLong("previewUntil", 0) != targetPreviewUntil) return
+        val occurrence = currentPlan(context, now).active
+        val closingPreview = targetPreviewUntil != null || (targetKey == null && isPreview)
+        val edit = preferences.edit()
+        if (closingPreview) edit.remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt").remove("previewAnnounced")
+        else {
+            val ending = targetEnding ?: (occurrence?.phase(now) == CoursePhase.ENDING_SOON)
+            val key = targetKey ?: occurrence?.let { if (ending) it.endingKey else it.key }
+            val field = if (ending) "dismissedEndingKeys" else "dismissedKeys"
+            val dismissed = recentKeys(preferences.getStringSet(field, emptySet()).orEmpty(), now)
+            if (!ending) preferences.getString("dismissed", null)?.let { dismissed.add(it) }
+            if (key != null) dismissed.add(key)
+            edit.putStringSet(field, dismissed)
+            if (!ending) edit.remove("dismissed")
+            val currentKey = visibleKey ?: occurrence?.let { if (it.phase(now) == CoursePhase.ENDING_SOON) it.endingKey else it.key }
+            if (targetKey != null && (isPreview || currentKey != targetKey)) {
+                // A delayed click/dismissal from the old card must not close or
+                // quietly overwrite a newer ending notification.
+                check(edit.commit())
+                return
+            }
         }
         check(edit.commit())
         LiveUpdateNotification.cancel(context)
         refresh(context)
     }
 
-    private fun currentPlan(context: Context): CoursePlan {
+    private fun currentPlan(context: Context, now: Long = System.currentTimeMillis()): CoursePlan {
         val preferences = prefs(context)
         if (!preferences.getBoolean("enabled", false)) return CoursePlan(null, null)
         val stored = JSONArray(preferences.getString("courses", "[]"))
         val courses = (0 until stored.length()).map { parseCourse(stored.getJSONObject(it)) }
-        return CoursePlanner.plan(courses, System.currentTimeMillis(),
+        return CoursePlanner.plan(courses, now,
             preferences.getInt("lead", 10), preferences.getString("dismissed", null),
             endingLeadMinutes = preferences.getInt("endingLead", 10),
-            dismissedKeys = preferences.getStringSet("dismissedKeys", emptySet()).orEmpty())
+            dismissedKeys = preferences.getStringSet("dismissedKeys", emptySet()).orEmpty(),
+            dismissedEndingKeys = preferences.getStringSet("dismissedEndingKeys", emptySet()).orEmpty(),
+            announcedEndingKeys = preferences.getStringSet("endingAnnouncedKeys", emptySet()).orEmpty() +
+                listOfNotNull(preferences.getString("endingAnnounced", null)))
+    }
+
+    fun endingStatus(context: Context): Map<String, Any> {
+        val preferences = prefs(context)
+        return mutableMapOf<String, Any>().apply {
+            currentPlan(context).nextEndingAt?.let { put("nextEndingAt", it) }
+            if (preferences.contains("lastEndingAt")) {
+                put("lastEndingAt", preferences.getLong("lastEndingAt", 0))
+                put("lastEndingCourse", preferences.getString("lastEndingCourse", "").orEmpty())
+                put("lastEndingPosted", preferences.getBoolean("lastEndingPosted", false))
+            }
+        }
     }
 
     fun refresh(context: Context) {
@@ -113,10 +160,13 @@ object CourseScheduler {
         val now = System.currentTimeMillis()
         val previewUntil = preferences.getLong("previewUntil", 0)
         val preview = preferences.getString("preview", null)
-        val plan = currentPlan(context)
+        val plan = currentPlan(context, now)
+        val announced = preferences.getStringSet("endingAnnouncedKeys", emptySet()).orEmpty().toMutableSet()
+        preferences.getString("endingAnnounced", null)?.let { announced.add(it) }
+        val newEnding = plan.active?.let { it.phase(now) == CoursePhase.ENDING_SOON && it.endingKey !in announced } == true
         var next = plan.nextWake
         var nextRefresh = plan.nextRefresh
-        if (preview != null && previewUntil > now) {
+        if (preview != null && previewUntil > now && !newEnding) {
             val value = JSONObject(preview)
             val spec = parseCourse(value)
             // A still-active preview can survive an app update from the old format.
@@ -129,22 +179,31 @@ object CourseScheduler {
                     preferences.edit().putLong("previewStartAt", it.start).putLong("previewEndAt", it.end).apply()
                 }
             }
-            LiveUpdateNotification.show(context, spec, occurrence, previewUntil,
+            val posted = LiveUpdateNotification.show(context, spec, occurrence, previewUntil,
+                alert = !preferences.getBoolean("previewAnnounced", false),
                 leadMinutes = preferences.getInt("lead", 10), semesterStart = preferences.getString("semesterStart", null),
-                weekStart = preferences.getInt("weekStart", 1), preview = true)
-            next = previewUntil
+                weekStart = preferences.getInt("weekStart", 1), preview = true, now = now)
+            if (posted) preferences.edit().putBoolean("previewAnnounced", true).apply()
+            // A test preview must not remove a real class's pending ending alarm.
+            next = plan.nextWake?.let { minOf(it, previewUntil) } ?: previewUntil
             nextRefresh = minOf(now + 60_000L, if (now < occurrence.start) occurrence.start else previewUntil)
         } else {
-            if (preview != null) preferences.edit().remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt").apply()
+            if (preview != null) preferences.edit().remove("preview").remove("previewUntil").remove("previewStartAt").remove("previewEndAt").remove("previewAnnounced").apply()
             val active = plan.active
             if (active == null) LiveUpdateNotification.cancel(context)
             else {
-                val newEnding = active.phase(now) == CoursePhase.ENDING_SOON &&
-                    preferences.getString("endingAnnounced", null) != active.endingKey
                 val posted = LiveUpdateNotification.show(context, active.course, active, active.end, alert = newEnding,
                     leadMinutes = preferences.getInt("lead", 10), semesterStart = preferences.getString("semesterStart", null),
-                    weekStart = preferences.getInt("weekStart", 1))
-                if (posted && newEnding) preferences.edit().putString("endingAnnounced", active.endingKey).apply()
+                    weekStart = preferences.getInt("weekStart", 1), now = now)
+                if (newEnding) {
+                    val edit = preferences.edit().putLong("lastEndingAt", now)
+                        .putString("lastEndingCourse", active.course.name).putBoolean("lastEndingPosted", posted)
+                    if (posted) {
+                        announced.add(active.endingKey)
+                        edit.putStringSet("endingAnnouncedKeys", recentKeys(announced, now)).remove("endingAnnounced")
+                    }
+                    edit.apply()
+                }
             }
         }
         val manager = context.getSystemService(AlarmManager::class.java)
@@ -164,15 +223,18 @@ object CourseScheduler {
                 manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pending)
             }
         }
-        if (nextRefresh != null) {
+        // A minute refresh at the same instant as a reminder boundary can overwrite
+        // its fresh alert with a quiet update before SystemUI has displayed it.
+        val cosmeticAt = nextRefresh?.takeIf { refresh -> next?.let { refresh < it } ?: true }
+        if (cosmeticAt != null) {
             // RTC never wakes a sleeping phone. Live countdowns are rendered by
             // the system chronometer; these refreshes only update the awake UI.
             try {
                 if (Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms()) {
-                    manager.setExact(AlarmManager.RTC, nextRefresh, cosmetic)
-                } else manager.set(AlarmManager.RTC, nextRefresh, cosmetic)
+                    manager.setExact(AlarmManager.RTC, cosmeticAt, cosmetic)
+                } else manager.set(AlarmManager.RTC, cosmeticAt, cosmetic)
             } catch (_: SecurityException) {
-                manager.set(AlarmManager.RTC, nextRefresh, cosmetic)
+                manager.set(AlarmManager.RTC, cosmeticAt, cosmetic)
             }
         }
 

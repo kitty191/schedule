@@ -10,50 +10,86 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
+import android.net.Uri
 import android.os.Build
 
 object LiveUpdateNotification {
+    internal const val DISMISSAL_KEY = "com.kitty191.schedule.dismissalKey"
+    internal const val ENDING_PHASE = "com.kitty191.schedule.endingPhase"
+    internal const val PREVIEW_UNTIL = "com.kitty191.schedule.previewUntil"
     // Keep the channel ID and package ID from the successful device test.
     private const val CHANNEL_ID = "island_test_live_updates"
     private const val NOTIFICATION_ID = 1001
+    private const val ENDING_CHANNEL_ID = "course_ending_alerts_v1"
+    private const val ENDING_NOTIFICATION_ID = 1002
     private const val REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
     private const val PURPLE = 0xFFB69AF7.toInt()
     private const val PREPARATION_COLOR = 0xFF8D9299.toInt()
 
-    fun show(context: Context, course: CourseSpec, occurrence: CourseOccurrence, expires: Long,
-        alert: Boolean = false, leadMinutes: Int = 10, semesterStart: String? = null,
-        weekStart: Int = 1, preview: Boolean = false): Boolean {
+    fun ensureChannels(context: Context) {
+        if (Build.VERSION.SDK_INT < 26) return
         val manager = context.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED) return false
-        if (!manager.areNotificationsEnabled()) return false
-        if (Build.VERSION.SDK_INT >= 26) {
+        for (ending in listOf(false, true)) {
             manager.createNotificationChannel(NotificationChannel(
-                CHANNEL_ID, "课程实时提醒", NotificationManager.IMPORTANCE_DEFAULT,
+                if (ending) ENDING_CHANNEL_ID else CHANNEL_ID,
+                if (ending) "下课前提示" else "课程实时提醒",
+                if (ending) NotificationManager.IMPORTANCE_HIGH else NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {
-                description = "课程时间进度、课前和下课倒计时"
+                description = if (ending) "到设置的下课前时间时突出显示，默认无声音和振动" else "课程时间进度、课前和下课倒计时"
                 setSound(null, null)
                 enableVibration(false)
                 setShowBadge(false)
             })
         }
-        val now = System.currentTimeMillis()
+    }
+
+    fun show(context: Context, course: CourseSpec, occurrence: CourseOccurrence, expires: Long,
+        alert: Boolean = false, leadMinutes: Int = 10, semesterStart: String? = null,
+        weekStart: Int = 1, preview: Boolean = false, now: Long = System.currentTimeMillis()): Boolean {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED) return false
+        if (!manager.areNotificationsEnabled()) return false
         val card = CourseLiveCard.create(course, occurrence, now, leadMinutes, semesterStart, weekStart, preview)
-        if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) return false
-        manager.notify(NOTIFICATION_ID, buildNotification(context, card, expires, now, alert))
+        val channelId = if (card.endingSoon) ENDING_CHANNEL_ID else CHANNEL_ID
+        val notificationId = if (card.endingSoon) ENDING_NOTIFICATION_ID else NOTIFICATION_ID
+        ensureChannels(context)
+        if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(channelId)?.importance == NotificationManager.IMPORTANCE_NONE) return false
+        // The ending boundary is a new attention event, not a quiet edit of a
+        // notification that may already have been dismissed or demoted by the OEM.
+        if (card.endingSoon && alert) manager.cancel(ENDING_NOTIFICATION_ID)
+        try {
+            manager.notify(notificationId, buildNotification(context, card, expires, now, alert, occurrence, preview))
+        } catch (_: SecurityException) { return false }
+        manager.cancel(if (card.endingSoon) NOTIFICATION_ID else ENDING_NOTIFICATION_ID)
         return true
     }
 
     internal fun buildNotification(context: Context, card: CourseLiveCard, expires: Long, now: Long,
-        alert: Boolean = false): Notification {
+        alert: Boolean = false, occurrence: CourseOccurrence? = null, preview: Boolean = false): Notification {
         val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val stop = PendingIntent.getBroadcast(context, 1, Intent(context, StopTestReceiver::class.java),
+        val stopIntent = Intent(context, StopTestReceiver::class.java).apply {
+            if (occurrence != null) {
+                val key = if (card.endingSoon) occurrence.endingKey else occurrence.key
+                val identity = if (preview) "preview:$expires" else key
+                data = Uri.parse("schedule://reminder/${Uri.encode(identity)}")
+                putExtra("dismissalKey", key).putExtra("ending", card.endingSoon)
+                if (preview) putExtra("previewUntil", expires)
+            }
+        }
+        val stop = PendingIntent.getBroadcast(context, 1, stopIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         @Suppress("DEPRECATION")
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, CHANNEL_ID) else Notification.Builder(context)
-        builder.setSmallIcon(R.drawable.ic_live_test)
+        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context,
+            if (card.endingSoon) ENDING_CHANNEL_ID else CHANNEL_ID) else Notification.Builder(context)
+        if (occurrence != null) {
+            builder.extras.putString(DISMISSAL_KEY, if (card.endingSoon) occurrence.endingKey else occurrence.key)
+            builder.extras.putBoolean(ENDING_PHASE, card.endingSoon)
+            if (preview) builder.extras.putLong(PREVIEW_UNTIL, expires)
+        }
+        builder.setSmallIcon(if (card.endingSoon) R.drawable.ic_live_ending else R.drawable.ic_live_test)
             .setContentTitle(card.headline)
             .setContentText(card.detail)
             .setSubText(card.metadata)
@@ -61,9 +97,10 @@ object LiveUpdateNotification {
             .setContentIntent(open)
             .setDeleteIntent(stop)
             .setCategory(Notification.CATEGORY_EVENT)
+            .setPriority(if (card.endingSoon) Notification.PRIORITY_HIGH else Notification.PRIORITY_DEFAULT)
             .setOngoing(true).setOnlyAlertOnce(!alert)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .addAction(Notification.Action.Builder(null, "结束提醒", stop).build())
+            .addAction(Notification.Action.Builder(null, if (card.endingSoon) "结束下课提醒" else "收起提醒", stop).build())
         if (Build.VERSION.SDK_INT >= 26) builder.setTimeoutAfter((expires - now).coerceAtLeast(1))
         // The same system-owned timer feeds the collapsed chip and expanded card.
         // A shortCriticalText such as "14分上课" is a snapshot, not a live timer;
@@ -102,14 +139,20 @@ object LiveUpdateNotification {
         return notification
     }
 
-    fun cancel(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
+    fun cancel(context: Context) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.cancel(NOTIFICATION_ID)
+        manager.cancel(ENDING_NOTIFICATION_ID)
+    }
 
     fun status(context: Context): Map<String, Any> {
         val manager = context.getSystemService(NotificationManager::class.java)
         val supported = Build.VERSION.SDK_INT >= 36
         val permission = Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        val active = manager.activeNotifications.firstOrNull { it.id == NOTIFICATION_ID }
+        val active = manager.activeNotifications.firstOrNull { it.id == ENDING_NOTIFICATION_ID }
+            ?: manager.activeNotifications.firstOrNull { it.id == NOTIFICATION_ID }
         val channelEnabled = Build.VERSION.SDK_INT < 26 || manager.getNotificationChannel(CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
+        val endingChannelEnabled = Build.VERSION.SDK_INT < 26 || manager.getNotificationChannel(ENDING_CHANNEL_ID)?.importance != NotificationManager.IMPORTANCE_NONE
         return mapOf(
             "supported" to supported,
             "notificationsEnabled" to (permission && manager.areNotificationsEnabled() && channelEnabled),
@@ -117,6 +160,9 @@ object LiveUpdateNotification {
             "active" to (active != null),
             "promoted" to (supported && active != null && (active.notification.flags and Notification.FLAG_PROMOTED_ONGOING) != 0),
             "exactAllowed" to (Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()),
-        )
+            "endingNotificationsEnabled" to (permission && manager.areNotificationsEnabled() && endingChannelEnabled),
+            "endingBannerEnabled" to (Build.VERSION.SDK_INT < 26 ||
+                (manager.getNotificationChannel(ENDING_CHANNEL_ID)?.importance ?: NotificationManager.IMPORTANCE_HIGH) >= NotificationManager.IMPORTANCE_HIGH),
+        ) + CourseScheduler.endingStatus(context)
     }
 }

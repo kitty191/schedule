@@ -45,7 +45,7 @@ class LiveUpdateNotificationTest {
         assertNull(notification.bigContentView)
         assertNotNull(notification.deleteIntent)
         assertNotNull(notification.contentIntent)
-        assertEquals("结束提醒", notification.actions.single().title)
+        assertEquals("收起提醒", notification.actions.single().title)
     }
     @Test fun segmentsMilestoneTrackerAndCountdownSurviveBuildingNotification() {
         val notification = notification()

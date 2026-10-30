@@ -14,6 +14,7 @@ data class CourseLiveCard(
     val countdownTo: Long,
     val progress: Int,
     val preparationEnd: Int,
+    val endingSoon: Boolean,
 ) {
     companion object {
         const val PROGRESS_MAX = 1000
@@ -78,9 +79,10 @@ data class CourseLiveCard(
                 (preparation * PROGRESS_MAX / duration).toInt().coerceIn(1, PROGRESS_MAX - 1)
             val countdown = "${minutes}分钟后${if (upcoming) startVerb else endVerb}"
             return CourseLiveCard(
-                headline, "${course.name} · $location", metadata,
+                if (ending) "快下课 · ${course.name}" else headline,
+                if (ending) "${if (nextDay) "次日 " else ""}${clock(occurrence.end)} 下课 · $location" else "${course.name} · $location", metadata,
                 "${course.name}\n$headline\n$location\n$metadata\n$countdown", target,
-                progress, preparationEnd,
+                progress, preparationEnd, ending,
             )
         }
 

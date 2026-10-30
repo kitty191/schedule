@@ -236,7 +236,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                     padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
                     child: MutedText(
                       _android
-                          ? '课前显示下一节课，上课后切换状态，下课前 ${preferences?.endingLeadMinutes ?? 10} 分钟以流体云显示“快下课”和倒计时，下课后自动结束。日程显示开始/结束状态。开启“沿用文件课前提醒”时，文件时间优先；修改上课前时间会自动关闭此项并统一使用新时间。提醒时长超过课程长度时，从上课开始显示下课提示。重叠时优先显示最早开始且尚未结束的一项。'
+                          ? '课前或课中提醒可收起，下课前 ${preferences?.endingLeadMinutes ?? 10} 分钟仍会单独提示一次，默认无声音和振动。请允许“下课前提示”通知、横幅和准时提醒。结束下课提示后，本次不再重复，下课后自动撤下。新到期的下课提示优先展示，其他时间显示最早开始的一项。沿用文件提醒时文件课前时间优先，修改上课前时间会统一使用新设置。下课提前量超过课程长度时从上课开始提示。日程仅使用开始前提醒。'
                           : 'iOS 使用普通课前通知。开启“沿用文件课前提醒”时，文件时间优先；修改上课前时间会自动关闭此项并统一使用新时间。',
                     ),
                   ),
@@ -259,8 +259,27 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                             ),
                             _row(
                               '准时提醒权限',
-                              _status!.exactAllowed ? '已允许' : '系统可能延后提醒',
+                              _status!.exactAllowed ? '已允许' : '未允许，提示可能延后',
                             ),
+                            _row(
+                              '下课提示通知',
+                              !_status!.endingNotificationsEnabled
+                                  ? '未允许，请打开系统通知设置'
+                                  : _status!.endingBannerEnabled
+                                  ? '已允许'
+                                  : '已开启，请允许横幅提示',
+                            ),
+                            _row(
+                              '下次下课提示',
+                              _status!.nextEndingAt == null
+                                  ? '暂无待触发提示'
+                                  : _reminderTime(_status!.nextEndingAt!),
+                            ),
+                            if (_status!.lastEndingAt != null)
+                              _row(
+                                '最近下课提示',
+                                '${_reminderTime(_status!.lastEndingAt!)}\n${_status!.lastEndingCourse ?? ''}\n${_status!.lastEndingPosted == true ? '已提交系统' : '未发送，请检查通知权限'}',
+                              ),
                           ],
                           _row('当前提醒', _status!.active ? '正在显示' : '未显示'),
                         ],
@@ -393,7 +412,7 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                                   await ref.read(bridgeProvider).stop();
                                   if (mounted) {
                                     setState(
-                                      () => _message = '当前提醒已结束。后续安排仍会继续提醒。',
+                                      () => _message = '当前提醒已结束，后续提醒仍按设置触发。',
                                     );
                                   }
                                 }),
@@ -440,4 +459,9 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
       ],
     ),
   );
+
+  String _reminderTime(int millis) {
+    final time = DateTime.fromMillisecondsSinceEpoch(millis);
+    return '${time.month}/${time.day} ${clockText(time.hour * 60 + time.minute)}';
+  }
 }

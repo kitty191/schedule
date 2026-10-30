@@ -40,11 +40,12 @@ class CoursePlannerTest {
         val monday = course.copy(weekday = 1, startMinute = 5, endMinute = 45)
         assertNotNull(plan(time(25, 23, 56), listOf(monday)).active)
     }
-    @Test fun dismissDoesNotRepostSameOccurrence() {
+    @Test fun closingTheRegularCloudDoesNotRepostItButKeepsTheEndingAlarm() {
         val active = plan(time(29, 8, 25)).active!!
         val result = plan(time(29, 8, 26), dismissed = active.key)
         assertNull(result.active)
-        assertTrue(result.nextWake!! > active.end)
+        assertEquals(time(29,9,50), result.nextWake)
+        assertEquals(CoursePhase.ENDING_SOON, plan(time(29,9,50), dismissed = active.key).active!!.phase(time(29,9,50)))
     }
     @Test fun overlappingCoursesPreferEarlierAndThenSwitch() {
         val later = course.copy(id = 2, startMinute = 9 * 60, endMinute = 11 * 60)
@@ -126,7 +127,8 @@ class CoursePlannerTest {
         val finite = course.copy(fixedOccurrences = listOf(Pair(time(29,8,30),time(29,10,0))))
         val ending = plan(time(29,9,50),listOf(finite)).active!!
         assertEquals(CoursePhase.ENDING_SOON, ending.phase(time(29,9,50)))
-        val stopped = plan(time(29,9,51),listOf(finite),ending.key)
+        val stopped = CoursePlanner.plan(listOf(finite),time(29,9,51),10,zone=zone,
+            dismissedEndingKeys=setOf(ending.endingKey))
         assertNull(stopped.active); assertNull(stopped.nextWake)
     }
     @Test fun ordinaryEventsHaveNoClassEndingReminder() {
@@ -203,9 +205,9 @@ class CoursePlannerTest {
         val both = keys + second.key
         val stopped = CoursePlanner.plan(courses,now,10,zone=zone,dismissedKeys=both)
         assertNull(stopped.active)
-        assertTrue(stopped.nextWake!! > second.end)
+        assertEquals(time(29,9,50), stopped.nextWake)
     }
-    @Test fun oldAndNewDismissalsAreBothHonoredAndFiniteCoursesStayStopped() {
+    @Test fun oldAndNewRegularDismissalsKeepFiniteEndingRemindersIndependent() {
         val first = course.copy(fixedOccurrences=listOf(Pair(time(29,8,30),time(29,10,0))))
         val second = first.copy(id=2)
         val now = time(29,9,0)
@@ -213,7 +215,13 @@ class CoursePlannerTest {
         val recent = CourseOccurrence(second,time(29,8,30),time(29,10,0)).key
         val plan = CoursePlanner.plan(listOf(first,second),now,10,dismissed=old,zone=zone,dismissedKeys=setOf(recent))
         assertNull(plan.active)
-        assertNull(plan.nextWake)
+        assertEquals(time(29,9,50), plan.nextWake)
+        val firstEnd = CourseOccurrence(first,time(29,8,30),time(29,10,0)).endingKey
+        val secondEnd = CourseOccurrence(second,time(29,8,30),time(29,10,0)).endingKey
+        val allStopped = CoursePlanner.plan(listOf(first,second),now,10,dismissed=old,zone=zone,
+            dismissedKeys=setOf(recent),dismissedEndingKeys=setOf(firstEnd,secondEnd))
+        assertNull(allStopped.active)
+        assertNull(allStopped.nextWake)
     }
 
     @Test fun progressRefreshContinuesDuringClassAndStopsAtTheEndWithoutExtraWakeups() {
@@ -224,6 +232,24 @@ class CoursePlannerTest {
         assertEquals(time(29,10,0), ending.nextRefresh)
         assertEquals(time(29,10,0), ending.nextWake)
         assertNull(plan(time(29,10,0)).nextRefresh)
+    }
+
+    @Test fun aLaterStartingCourseEndingSoonTakesPriorityOverAnEarlierLongClass() {
+        val long = course.copy(endMinute=11*60)
+        val short = course.copy(id=2,startMinute=9*60,endMinute=10*60)
+        val now = time(29,9,50)
+        val result = plan(now,listOf(long,short))
+        assertEquals(2,result.active!!.course.id)
+        assertEquals(CoursePhase.ENDING_SOON,result.active!!.phase(now))
+        assertEquals(time(29,10,50),result.nextEndingAt)
+    }
+
+    @Test fun endingDismissalNeverTurnsBackIntoAnOrdinaryCloud() {
+        val occurrence = CourseOccurrence(course,time(29,8,30),time(29,10,0))
+        val result = CoursePlanner.plan(listOf(course),time(29,9,51),10,zone=zone,
+            dismissedEndingKeys=setOf(occurrence.endingKey))
+        assertNull(result.active)
+        assertTrue(result.nextWake!! > occurrence.end)
     }
 
 }
