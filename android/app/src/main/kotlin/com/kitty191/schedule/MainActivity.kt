@@ -33,11 +33,27 @@ class MainActivity : FlutterActivity() {
                         "previewEnding" -> requestNotificationPermission(result,
                             (call.arguments as Map<*, *>) + mapOf("previewEnding" to true))
                         "stop" -> { CourseScheduler.stop(this); replyAfterUpdate(result) }
+                        "backgroundTest" -> { BackgroundReminderProbe.arm(this); replyAfterUpdate(result) }
+                        "cancelBackgroundTest" -> { BackgroundReminderProbe.cancel(this); replyAfterUpdate(result) }
                         "settings" -> { openNotificationSettings(); result.success(null) }
+                        "backgroundSettings" -> {
+                            openFirst(listOf(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:$packageName"))))
+                            result.success(null)
+                        }
+                        "batterySettings" -> {
+                            openFirst(listOf(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))))
+                            result.success(null)
+                        }
                         "exactSettings" -> {
-                            if (Build.VERSION.SDK_INT >= 31) {
-                                openFirst(listOf(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                                    Uri.parse("package:$packageName"))))
+                            if (Build.VERSION.SDK_INT >= 31 &&
+                                !getSystemService(android.app.AlarmManager::class.java).canScheduleExactAlarms()) {
+                                val app = Uri.parse("package:$packageName")
+                                openFirst(if (Build.VERSION.SDK_INT <= 32) listOf(
+                                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, app),
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, app))
+                                else listOf(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, app)))
                             }
                             result.success(null)
                         }
@@ -115,6 +131,7 @@ class MainActivity : FlutterActivity() {
         for (intent in intents) {
             try { startActivity(intent); return }
             catch (_: ActivityNotFoundException) { /* Try the OEM fallback. */ }
+            catch (_: SecurityException) { /* Some OEM settings are not exported. */ }
         }
         throw IllegalStateException("请在手机设置中打开本应用的通知和闹钟权限。")
     }

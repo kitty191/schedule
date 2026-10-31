@@ -185,6 +185,8 @@ class ScheduleDatabase extends _$ScheduleDatabase {
         value.endingLeadMinutes > 1440) {
       throw ArgumentError('提醒时间应为 1–1440 分钟。');
     }
-    await into(preferences).insertOnConflictUpdate(value);
+    // This is a full settings snapshot. Explicit nulls must clear old nullable
+    // fields (for example a removed semester date), rather than be omitted.
+    await into(preferences).insertOnConflictUpdate(value.toCompanion(false));
   }
 }

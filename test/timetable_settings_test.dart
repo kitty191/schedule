@@ -188,6 +188,8 @@ void main() {
         .singleWhere((c) => c['name'] == '按节次排课');
     expect(sent['startMinute'], next.periods[1].start);
     expect(sent['endMinute'], next.periods[2].end);
+    expect(sent['startPeriod'], 2);
+    expect(sent['endPeriod'], 3);
   });
   test('Shrinking periods below an existing binding rolls back settings and course changes', () async {
     final db = ScheduleDatabase(NativeDatabase.memory());
@@ -332,5 +334,76 @@ void main() {
           .heightPercent,
       60,
     );
+  });
+
+  test('Native course metadata infers only exact period boundaries and omits event periods', () {
+    final settings = TimetableSettings.defaults();
+    final course = Course(
+      id: 1,
+      name: '导入课程',
+      location: 'B402',
+      weekday: 4,
+      startMinute: settings.periods[2].start,
+      endMinute: settings.periods[3].end,
+      colorIndex: 0,
+    );
+    final inferred = coursePayload(course, timetable: settings);
+    expect(inferred['startPeriod'], 3);
+    expect(inferred['endPeriod'], 4);
+    final custom = coursePayload(
+      course.copyWith(startMinute: course.startMinute + 1),
+      timetable: settings,
+    );
+    expect(custom.containsKey('startPeriod'), isFalse);
+    expect(custom.containsKey('endPeriod'), isFalse);
+    final event = coursePayload(
+      course.copyWith(kind: const Value('event')),
+      timetable: settings,
+    );
+    expect(event.containsKey('startPeriod'), isFalse);
+  });
+
+  test('Changing week start syncs native teaching-week metadata without changing course times', () async {
+    final db = ScheduleDatabase(NativeDatabase.memory());
+    final bridge = RecordingBridge();
+    final container = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        bridgeProvider.overrideWithValue(bridge),
+      ],
+    );
+    addTearDown(() async {
+      container.dispose();
+      await db.close();
+    });
+    final settings = TimetableSettings.defaults();
+    await db.saveCourse(linked(settings));
+    final prefs = await db.loadPreferences();
+    await db.savePreferences(
+      prefs.copyWith(semesterStart: Value(DateTime(2026, 10, 26))),
+    );
+    await container.read(appProvider.future);
+    expect(bridge.configured!['semesterStart'], '2026-10-26');
+    expect(bridge.configured!['weekStart'], 1);
+    final calls = bridge.calls;
+    await container
+        .read(appProvider.notifier)
+        .updateTimetable(settings.copyWith(weekStart: 7));
+    expect(bridge.calls, calls + 1);
+    expect(bridge.configured!['weekStart'], 7);
+    expect(
+      (await db.loadCourses()).single.startMinute,
+      settings.periods[1].start,
+    );
+    await container
+        .read(appProvider.notifier)
+        .updatePreferences(
+          container
+              .read(appProvider)
+              .requireValue
+              .preferences
+              .copyWith(semesterStart: const Value(null)),
+        );
+    expect(bridge.configured!.containsKey('semesterStart'), isFalse);
   });
 }

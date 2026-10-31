@@ -9,6 +9,7 @@ data class CourseSpec(
     val weekday: Int, val startMinute: Int, val endMinute: Int,
     val fixedOccurrences: List<Pair<Long, Long>>? = null,
     val leadMinutes: Int? = null, val kind: String = "course",
+    val startPeriod: Int? = null, val endPeriod: Int? = null,
 )
 
 enum class CoursePhase { UPCOMING, IN_CLASS, ENDING_SOON }
@@ -24,7 +25,8 @@ data class CourseOccurrence(val course: CourseSpec, val start: Long, val end: Lo
     }
 }
 
-data class CoursePlan(val active: CourseOccurrence?, val nextWake: Long?, val nextRefresh: Long? = null)
+data class CoursePlan(val active: CourseOccurrence?, val nextWake: Long?, val nextRefresh: Long? = null,
+    val nextEndingAt: Long? = null, val wakeTimes: List<Long> = listOfNotNull(nextWake))
 
 object CoursePlanner {
     fun plan(
@@ -32,13 +34,15 @@ object CoursePlanner {
         dismissed: String? = null, zone: TimeZone = TimeZone.getDefault(),
         endingLeadMinutes: Int = 10,
         dismissedKeys: Set<String> = emptySet(),
+        dismissedEndingKeys: Set<String> = emptySet(),
+        announcedEndingKeys: Set<String> = emptySet(),
     ): CoursePlan {
         require(leadMinutes in 1..1440 && endingLeadMinutes in 1..1440)
         val occurrences = mutableListOf<CourseOccurrence>()
         for (course in courses.filter { it.fixedOccurrences != null }) {
             for ((start, end) in course.fixedOccurrences!!) {
                 val occurrence = CourseOccurrence(course, start, end, endingLeadMinutes)
-                if (end > now && occurrence.key != dismissed && occurrence.key !in dismissedKeys) occurrences.add(occurrence)
+                if (end > now) occurrences.add(occurrence)
             }
         }
         for (offset in -1..8) {
@@ -55,18 +59,28 @@ object CoursePlanner {
                     set(Calendar.MILLISECOND, 0)
                 }.timeInMillis
                 val occurrence = CourseOccurrence(course, at(course.startMinute), at(course.endMinute), endingLeadMinutes)
-                if (occurrence.end > now && occurrence.key != dismissed && occurrence.key !in dismissedKeys) occurrences.add(occurrence)
+                if (occurrence.end > now) occurrences.add(occurrence)
             }
         }
         occurrences.sortWith(compareBy<CourseOccurrence> { it.start }.thenBy { it.course.id })
         fun lead(occurrence: CourseOccurrence) = (occurrence.course.leadMinutes ?: leadMinutes) * 60_000L
-        val active = occurrences.firstOrNull { now >= it.start - lead(it) && now < it.end }
+        // Closing a pre-class/in-class cloud must not cancel the later ending alert.
+        // The ending phase has its own dismissal keys and wins over regular clouds.
+        val regular = occurrences.filter { it.key != dismissed && it.key !in dismissedKeys &&
+            it.phase(now) != CoursePhase.ENDING_SOON }
+        val endings = occurrences.filter { it.endingReminderAt != null && it.endingKey !in dismissedEndingKeys }
+        val activeEnding = endings.filter { it.phase(now) == CoursePhase.ENDING_SOON }
+            .minWithOrNull(compareBy<CourseOccurrence> { if (it.endingKey in announcedEndingKeys) 1 else 0 }
+                .thenBy { it.end }.thenBy { it.start }.thenBy { it.course.id })
+        val active = activeEnding ?: regular.firstOrNull { now >= it.start - lead(it) && now < it.end }
         // Only reminder boundaries use wake-up alarms. Cosmetic minute refreshes
-        // and the start-state transition must not consume allow-while-idle quota.
-        val boundaries = occurrences.flatMap { listOfNotNull(it.start - lead(it), it.endingReminderAt, it.end) }
-            .filter { it > now }
-        val wake = boundaries.minOrNull()
-        val refresh = active?.takeIf { now < it.start }?.let { minOf(now + 60_000L, it.start) }
-        return CoursePlan(active, wake, refresh)
+        // and progress updates must not consume allow-while-idle quota.
+        val boundaries = (regular.flatMap { listOf(it.start - lead(it), it.start, it.end) } +
+            endings.flatMap { listOfNotNull(it.endingReminderAt, it.end) })
+            .filter { it > now }.distinct().sorted().take(64)
+        val wake = boundaries.firstOrNull()
+        val refresh = active?.let { minOf(now + 60_000L, if (now < it.start) it.start else it.end) }
+        val nextEnding = endings.mapNotNull { it.endingReminderAt }.filter { it > now }.minOrNull()
+        return CoursePlan(active, wake, refresh, nextEnding, boundaries)
     }
 }

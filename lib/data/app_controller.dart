@@ -52,18 +52,23 @@ class AppController extends AsyncNotifier<AppData> {
     }
     String? error;
     try {
+      final timetable = TimetableSettings.decode(preferences.timetableConfig);
       await ref.read(bridgeProvider).configure({
         'courses': courses
             .map(
               (course) => coursePayload(
                 course,
                 includeFileReminder: preferences.useFileReminders,
+                timetable: timetable,
               ),
             )
             .toList(),
         'enabled': preferences.reminders,
         'leadMinutes': preferences.leadMinutes,
         'endingLeadMinutes': preferences.endingLeadMinutes,
+        'weekStart': timetable.weekStart,
+        if (preferences.semesterStart != null)
+          'semesterStart': dayKey(preferences.semesterStart!),
       });
     } on PlatformException catch (e) {
       error = e.message ?? '系统提醒暂未更新，请重新打开应用重试。';
@@ -101,7 +106,12 @@ class AppController extends AsyncNotifier<AppData> {
               previous.periods[i].end != settings.periods[i].end,
         );
     await database.saveTimetableSettings(settings);
-    state = AsyncData(await _loadAndSync(syncNotifications: timesChanged));
+    state = AsyncData(
+      await _loadAndSync(
+        syncNotifications:
+            timesChanged || previous.weekStart != settings.weekStart,
+      ),
+    );
   });
 
   Future<int> importCalendar(

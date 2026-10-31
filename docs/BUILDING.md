@@ -21,6 +21,8 @@ cd android
 ./gradlew :app:testDebugUnitTest :app:lintRelease
 ```
 
+原生单元测试使用 Robolectric 4.17，首次运行会下载 Android 24、36、37 测试框架。构建配置会将会话 HTTP 代理和 Java CA 信任设置传给测试 JVM，不关闭 TLS 校验。
+
 输出：`build/app/outputs/flutter-apk/app-release.apk`。纯 Android Gradle 任务需要先执行 `flutter pub get` / Flutter 构建以生成 SDK 路径等本机配置；`./gradlew --version` 可以独立检查 Wrapper。
 
 数据库生成文件 `lib/data/database.g.dart` 已提交；只有修改数据表时才需执行 `dart run build_runner build`。依赖由 `pubspec.lock` 固定。

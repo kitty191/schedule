@@ -8,6 +8,25 @@ class LiveUpdateStatus {
     required this.active,
     required this.promoted,
     this.exactAllowed = false,
+    this.endingNotificationsEnabled = true,
+    this.endingBannerEnabled = true,
+    this.nextEndingAt,
+    this.lastEndingAt,
+    this.lastEndingCourse,
+    this.lastEndingPosted,
+    this.batteryOptimizationIgnored = false,
+    this.backgroundRestricted = false,
+    this.scheduledBoundaryCount = 0,
+    this.nextBackgroundAt,
+    this.lastBackgroundWakeAt,
+    this.lastBackgroundScheduledAt,
+    this.probeDueAt,
+    this.probeUntil,
+    this.probeLastWakeAt,
+    this.probeLastScheduledAt,
+    this.probeCallbackCount = 0,
+    this.probeCancelled = false,
+    this.probePosted,
   });
 
   factory LiveUpdateStatus.fromMap(Map<Object?, Object?> value) =>
@@ -18,6 +37,28 @@ class LiveUpdateStatus {
         active: value['active'] == true,
         promoted: value['promoted'] == true,
         exactAllowed: value['exactAllowed'] == true,
+        endingNotificationsEnabled:
+            value['endingNotificationsEnabled'] != false,
+        endingBannerEnabled: value['endingBannerEnabled'] != false,
+        nextEndingAt: (value['nextEndingAt'] as num?)?.toInt(),
+        lastEndingAt: (value['lastEndingAt'] as num?)?.toInt(),
+        lastEndingCourse: value['lastEndingCourse'] as String?,
+        lastEndingPosted: value['lastEndingPosted'] as bool?,
+        batteryOptimizationIgnored: value['batteryOptimizationIgnored'] == true,
+        backgroundRestricted: value['backgroundRestricted'] == true,
+        scheduledBoundaryCount:
+            (value['scheduledBoundaryCount'] as num?)?.toInt() ?? 0,
+        nextBackgroundAt: (value['nextBackgroundAt'] as num?)?.toInt(),
+        lastBackgroundWakeAt: (value['lastBackgroundWakeAt'] as num?)?.toInt(),
+        lastBackgroundScheduledAt: (value['lastBackgroundScheduledAt'] as num?)
+            ?.toInt(),
+        probeDueAt: (value['probeDueAt'] as num?)?.toInt(),
+        probeUntil: (value['probeUntil'] as num?)?.toInt(),
+        probeLastWakeAt: (value['probeLastWakeAt'] as num?)?.toInt(),
+        probeLastScheduledAt: (value['probeLastScheduledAt'] as num?)?.toInt(),
+        probeCallbackCount: (value['probeCallbackCount'] as num?)?.toInt() ?? 0,
+        probeCancelled: value['probeCancelled'] == true,
+        probePosted: value['probePosted'] as bool?,
       );
 
   final bool supported;
@@ -26,6 +67,18 @@ class LiveUpdateStatus {
   final bool active;
   final bool promoted;
   final bool exactAllowed;
+  final bool endingNotificationsEnabled;
+  final bool endingBannerEnabled;
+  final int? nextEndingAt, lastEndingAt;
+  final String? lastEndingCourse;
+  final bool? lastEndingPosted;
+  final bool batteryOptimizationIgnored, backgroundRestricted;
+  final int scheduledBoundaryCount;
+  final int? nextBackgroundAt, lastBackgroundWakeAt, lastBackgroundScheduledAt;
+  final int? probeDueAt, probeUntil, probeLastWakeAt, probeLastScheduledAt;
+  final int probeCallbackCount;
+  final bool probeCancelled;
+  final bool? probePosted;
 }
 
 class LiveUpdateBridge {
@@ -40,7 +93,15 @@ class LiveUpdateBridge {
   Future<LiveUpdateStatus> previewEnding(Map<String, Object> course) =>
       _invoke('previewEnding', course);
   Future<LiveUpdateStatus> stop() => _invoke('stop');
+  Future<LiveUpdateStatus> scheduleBackgroundTest() =>
+      _invoke('backgroundTest');
+  Future<LiveUpdateStatus> cancelBackgroundTest() =>
+      _invoke('cancelBackgroundTest');
   Future<void> openSettings() => channel.invokeMethod<void>('settings');
+  Future<void> openBackgroundSettings() =>
+      channel.invokeMethod<void>('backgroundSettings');
+  Future<void> openBatterySettings() =>
+      channel.invokeMethod<void>('batterySettings');
   Future<void> openExactSettings() =>
       channel.invokeMethod<void>('exactSettings');
 
