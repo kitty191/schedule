@@ -196,6 +196,6 @@ object LiveUpdateNotification {
             "endingNotificationsEnabled" to (permission && manager.areNotificationsEnabled() && endingChannelEnabled),
             "endingBannerEnabled" to (Build.VERSION.SDK_INT < 26 ||
                 (manager.getNotificationChannel(ENDING_CHANNEL_ID)?.importance ?: NotificationManager.IMPORTANCE_HIGH) >= NotificationManager.IMPORTANCE_HIGH),
-        ) + CourseScheduler.endingStatus(context) + CourseScheduler.backgroundStatus(context)
+        ) + CourseScheduler.endingStatus(context) + CourseScheduler.backgroundStatus(context) + BackgroundReminderProbe.status(context)
     }
 }

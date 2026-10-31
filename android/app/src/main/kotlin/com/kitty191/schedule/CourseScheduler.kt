@@ -196,6 +196,7 @@ object CourseScheduler {
 
     fun receiveAlarm(context: Context, intent: Intent) {
         if (intent.action == BOUNDARY_ACTION) {
+            BackgroundReminderProbe.receive(context, intent.getLongExtra("scheduledAt", 0), System.currentTimeMillis())
             // Persist a receipt separately from UI/onResume refreshes. Opening
             // the app must never make a missed background alarm look delivered.
             check(prefs(context).edit()
@@ -204,6 +205,13 @@ object CourseScheduler {
                 .commit())
         }
         refresh(context)
+    }
+
+    fun canRunProbe(context: Context, until: Long): Boolean {
+        val now = System.currentTimeMillis()
+        val plan = currentPlan(context, now)
+        return plan.active == null && (plan.nextWake == null || plan.nextWake > until) &&
+            prefs(context).getLong("previewUntil", 0) <= now
     }
 
     fun backgroundStatus(context: Context): Map<String, Any> {
@@ -226,11 +234,14 @@ object CourseScheduler {
         val now = System.currentTimeMillis()
         val previewUntil = preferences.getLong("previewUntil", 0)
         val preview = preferences.getString("preview", null)
-        val plan = currentPlan(context, now)
+        val realPlan = currentPlan(context, now)
+        val probePlan = BackgroundReminderProbe.plan(context, now)
+        val plan = if (realPlan.active != null) realPlan else probePlan.copy(
+            active = probePlan.active, nextEndingAt = realPlan.nextEndingAt)
         val announced = preferences.getStringSet("endingAnnouncedKeys", emptySet()).orEmpty().toMutableSet()
         preferences.getString("endingAnnounced", null)?.let { announced.add(it) }
         val newEnding = plan.active?.let { it.phase(now) == CoursePhase.ENDING_SOON && it.endingKey !in announced } == true
-        var wakeTimes = plan.wakeTimes
+        var wakeTimes = (realPlan.wakeTimes + probePlan.wakeTimes).distinct().sorted().take(64)
         var nextRefresh = plan.nextRefresh
         if (preview != null && previewUntil > now && !newEnding) {
             val value = JSONObject(preview)
@@ -258,11 +269,14 @@ object CourseScheduler {
             val active = plan.active
             if (active == null) LiveUpdateNotification.cancel(context)
             else {
+                val probe = active.course.id == BackgroundReminderProbe.COURSE_ID
                 val posted = LiveUpdateNotification.show(context, active.course, active, active.end, alert = newEnding,
                     leadMinutes = preferences.getInt("lead", 10), semesterStart = preferences.getString("semesterStart", null),
                     weekStart = preferences.getInt("weekStart", 1), now = now)
+                if (probe) BackgroundReminderProbe.recordPost(context, posted)
                 if (newEnding) {
-                    val edit = preferences.edit().putLong("lastEndingAt", now)
+                    val edit = preferences.edit()
+                    if (!probe) edit.putLong("lastEndingAt", now)
                         .putString("lastEndingCourse", active.course.name).putBoolean("lastEndingPosted", posted)
                     if (posted) {
                         announced.add(active.endingKey)

@@ -351,6 +351,57 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
                           const MutedText(
                             '这些状态无法读取 ColorOS 的全部清理策略；已登记不代表系统一定会放行。若只有打开 App 才出现提醒，请查看“最近后台触发”是否仍停留在之前的时间。强行停止后，系统会撤销闹钟和通知，需重新打开应用才能恢复。',
                           ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            '离开 App 后自动测试',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                          const MutedText(
+                            '点下面按钮后直接回桌面，不要打开 App 或点击预览。第 1 分钟应出现“后台自动提醒测试”，第 2 分钟切换计时，第 3 分钟提示快下课，第 4 分钟撤下。测试不保存到课表，真实课程优先。测试后再回来查看结果。',
+                          ),
+                          if (_status?.probeDueAt != null) ...[
+                            _row('测试计划', _reminderTime(_status!.probeDueAt!)),
+                            _row('测试结果', _probeResult(_status!)),
+                            if (_status!.probeLastWakeAt != null)
+                              _row(
+                                '测试实际回调',
+                                '${_reminderTime(_status!.probeLastWakeAt!)}\n计划 ${_reminderTime(_status!.probeLastScheduledAt!)}\n共 ${_status!.probeCallbackCount} 个时点',
+                              ),
+                          ],
+                          CupertinoButton(
+                            key: const Key('background-test'),
+                            onPressed: _busy
+                                ? null
+                                : () => _run(() async {
+                                    final status = await ref
+                                        .read(bridgeProvider)
+                                        .scheduleBackgroundTest();
+                                    if (mounted) {
+                                      setState(() {
+                                        _status = status;
+                                        _message =
+                                            '已安排，请回到桌面等待 1 分钟，期间不要重新打开应用。';
+                                      });
+                                    }
+                                  }),
+                            child: const Text('1 分钟后自动测试'),
+                          ),
+                          if (_status?.probeUntil != null &&
+                              !_status!.probeCancelled &&
+                              _status!.probeUntil! >
+                                  DateTime.now().millisecondsSinceEpoch)
+                            CupertinoButton(
+                              key: const Key('cancel-background-test'),
+                              onPressed: _busy
+                                  ? null
+                                  : () => _run(() async {
+                                      await ref
+                                          .read(bridgeProvider)
+                                          .cancelBackgroundTest();
+                                    }),
+                              child: const Text('取消后台测试'),
+                            ),
                           CupertinoButton(
                             key: const Key('background-settings'),
                             onPressed: _busy
@@ -537,5 +588,16 @@ class _ReminderSheetState extends ConsumerState<ReminderSheet>
   String _reminderTime(int millis) {
     final time = DateTime.fromMillisecondsSinceEpoch(millis);
     return '${time.month}/${time.day} ${clockText(time.hour * 60 + time.minute)}';
+  }
+
+  String _probeResult(LiveUpdateStatus status) {
+    if (status.probeCancelled) return '已取消';
+    if (status.probeCallbackCount == 0) {
+      return DateTime.now().millisecondsSinceEpoch > status.probeDueAt! + 30000
+          ? '未收到后台回调，请检查后台运行限制'
+          : '等待系统闹钟，请离开 App';
+    }
+    if (status.probePosted == null) return '已收到回调，尚未提交测试通知';
+    return status.probePosted! ? '已收到回调并提交通知，请核对桌面流体云' : '已收到回调，通知提交失败，请检查通知权限';
   }
 }

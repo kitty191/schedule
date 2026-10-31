@@ -454,4 +454,101 @@ class CourseSchedulerTest {
         shadowOf(Looper.getMainLooper()).idle()
         assertTrue(notifications.activeNotifications.isEmpty())
     }
+
+    @Test @Config(sdk = [36,37]) fun delayedBackgroundProbeUsesTheProductionReceiverWithoutOpeningTheApp() {
+        configure()
+        val originalCourses = preferences.getString("courses", null)
+        BackgroundReminderProbe.arm(context)
+        assertTrue(notifications.activeNotifications.isEmpty())
+        assertEquals(0, BackgroundReminderProbe.status(context)["probeCallbackCount"])
+        deliverAt(7,31)
+        assertTrue(notifications.activeNotifications.single().notification.extras
+            .getCharSequence(Notification.EXTRA_TEXT).toString().contains("后台自动提醒测试"))
+        assertEquals(true, BackgroundReminderProbe.status(context)["probePosted"])
+        assertEquals(at(7,31), BackgroundReminderProbe.status(context)["probeLastWakeAt"])
+        deliverAt(7,32)
+        assertEquals(at(7,34), notifications.activeNotifications.single().notification.`when`)
+        deliverAt(7,33)
+        assertEquals("快下课 · 后台自动提醒测试", notifications.activeNotifications.single().notification.extras
+            .getCharSequence(Notification.EXTRA_TITLE).toString())
+        assertFalse(CourseScheduler.endingStatus(context).containsKey("lastEndingAt"))
+        deliverAt(7,34)
+        assertTrue(notifications.activeNotifications.isEmpty())
+        assertEquals(4, BackgroundReminderProbe.status(context)["probeCallbackCount"])
+        assertEquals(originalCourses, preferences.getString("courses", null))
+        assertTrue(shadowOf(alarms).scheduledAlarms.any { it.triggerAtTime == at(7,50) })
+    }
+
+    @Test fun reopeningTheAppDoesNotFakeAnUnreceivedProbe() {
+        configure()
+        BackgroundReminderProbe.arm(context)
+        advanceTo(7,31)
+        CourseScheduler.refresh(context)
+        configure()
+        assertTrue(notifications.activeNotifications.isEmpty())
+        assertEquals(0, BackgroundReminderProbe.status(context)["probeCallbackCount"])
+        assertFalse(BackgroundReminderProbe.status(context).containsKey("probePosted"))
+        deliverAt(7,32)
+        assertEquals(1, BackgroundReminderProbe.status(context)["probeCallbackCount"])
+        assertTrue(notifications.activeNotifications.isNotEmpty())
+    }
+
+    @Test fun cancellingTheProbeKeepsRealCourseAlarmsAndCannotDismissTheirNotifications() {
+        configure()
+        BackgroundReminderProbe.arm(context)
+        deliverAt(7,31)
+        BackgroundReminderProbe.cancel(context)
+        assertTrue(notifications.activeNotifications.isEmpty())
+        assertEquals(true, BackgroundReminderProbe.status(context)["probeCancelled"])
+        assertEquals(listOf(at(7,50),at(8,0),at(9,15),at(9,25)),
+            shadowOf(alarms).scheduledAlarms.map { it.triggerAtTime }.sorted())
+        deliverAt(7,50)
+        BackgroundReminderProbe.cancel(context)
+        assertTrue(notifications.activeNotifications.single().notification.extras
+            .getCharSequence(Notification.EXTRA_TEXT).toString().contains("大学物理"))
+    }
+
+    @Test fun missingPermissionsRejectTheProbeInsteadOfPretendingItWasScheduled() {
+        configure()
+        ShadowAlarmManager.setCanScheduleExactAlarms(false)
+        assertThrows(IllegalStateException::class.java) { BackgroundReminderProbe.arm(context) }
+        ShadowAlarmManager.setCanScheduleExactAlarms(true)
+        shadowOf(context).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        assertThrows(IllegalStateException::class.java) { BackgroundReminderProbe.arm(context) }
+        assertTrue(BackgroundReminderProbe.status(context).isEmpty())
+    }
+
+    @Test fun explicitProbeWorksWithGlobalRemindersOffAndCanBeClosedFromItsOwnAction() {
+        CourseScheduler.configure(context, mapOf("enabled" to false, "courses" to emptyList<Any>()))
+        BackgroundReminderProbe.arm(context)
+        deliverAt(7,31)
+        closeCurrentCloud()
+        assertTrue(notifications.activeNotifications.isEmpty())
+        deliverAt(7,33)
+        assertEquals(true, BackgroundReminderProbe.status(context)["probePosted"])
+        closeCurrentCloud()
+        assertTrue(notifications.activeNotifications.isEmpty())
+        assertFalse(preferences.getBoolean("enabled", true))
+    }
+
+    @Test fun theProbeRefusesToCoverAnImminentOrActiveRealCourse() {
+        configure()
+        advanceTo(7,48)
+        assertThrows(IllegalStateException::class.java) { BackgroundReminderProbe.arm(context) }
+        advanceTo(8,5)
+        assertThrows(IllegalStateException::class.java) { BackgroundReminderProbe.arm(context) }
+        assertTrue(BackgroundReminderProbe.status(context).isEmpty())
+    }
+
+    @Test fun probeReceiptsSurviveRestoreAndReportARejectedPostSeparately() {
+        configure()
+        BackgroundReminderProbe.arm(context)
+        for (alarm in shadowOf(alarms).scheduledAlarms.toList()) alarms.cancel(alarm.operation!!)
+        ScheduleRestoreReceiver().onReceive(context, Intent(Intent.ACTION_BOOT_COMPLETED))
+        shadowOf(context).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        deliverAt(7,31)
+        assertEquals(1, BackgroundReminderProbe.status(context)["probeCallbackCount"])
+        assertEquals(false, BackgroundReminderProbe.status(context)["probePosted"])
+        assertTrue(notifications.activeNotifications.isEmpty())
+    }
 }
